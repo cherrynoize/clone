@@ -38,8 +38,16 @@ To view the full usage message type:
 Follows GNU cp convention (meaning no BSD trailing slash
 extravaganzas).
 
-### Path addressing use cases
+### Use cases
 
-"SRC" will be copied as "DEST/SRC"
-"SRC/" will be also copied as "DEST/SRC"
-The contents of "SRC/." will be copied inside "DEST/."
+    clone -s /path/to/src /path/to/dest
+
+The contents of `src` will be copied into `/path/to/dest/src`.
+
+    clone -s /path/to/src/ /path/to/dest
+
+The contents of `src` will also be copied into `/path/to/dest/src`.
+
+    clone -s /path/to/src/. /path/to/dest
+
+The contents of `src` will be copied into `/path/to/dest`.

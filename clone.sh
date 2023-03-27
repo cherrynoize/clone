@@ -8,29 +8,38 @@
 # Helps configure jobs and tasks for backing up or syncing files
 # and directories with rsync
 
+#
+# Options
+#
+
+# Path to clone dir
+clone_dir="$HOME/.clone"
+
+# Path to jobs dir
+jobs_dir="$clone_dir/jobs"
+
 # Path to config file
-config_file="$HOME/.clone/config.sh"
+config_file="$clone_dir/config.sh"
 
-# Default list of sources for backup 
-sources=("/home" "/etc")
-
-# Path to file with sources
-source_file="$HOME/.clone/sources.conf"
+# Program name
+PROGRAM_NAME="clone"
 
 # Version number
-VERSION="0.00.1"
+VERSION="0.00.2"
 
 # Colorschemes
-RED='\033[0;31m'
-GREEN='\033[0;32m'
-BLUE='\033[0;36m'
-PURPLE='\033[0;35m'
-YELLOW='\033[0;37m'
+RED='\033[1;31m'
+GREEN='\033[1;32m'
+ORANGE='\033[1;33m'
+PURPLE='\033[3;35m'
+BLUE='\033[1;36m'
+YELLOW='\033[1;37m'
 NC='\033[0m' # No color
 
 # Program colors
 color_alert=$RED
 color_title=$YELLOW
+color_subtitle=$ORANGE
 color_hint=$PURPLE
 color_task=$BLUE
 color_active=$YELLOW
@@ -38,13 +47,18 @@ color_normal=$NC
 
 # List entry prefix 
 list_prefix="->"
+
 # Right arrow
 arrow="->"
+
 # Verbose output separator
 #separator="============================\n"
 
+#
+# Initialization
+#
+
 # Initialize variables
-options=
 positional_args=()
 
 # Source config
@@ -52,6 +66,10 @@ positional_args=()
 
 # Set initial color 
 printf "${color_normal}"
+
+#
+# Functions
+#
 
 # Print version number and quit
 ver () {
@@ -78,15 +96,21 @@ print_help () {
   # Notes:
   # - sources after "-s" are a string of comma or
   #   whitespace separated source paths
-  # - sources in source_file are newline separated
   echo Sorry, the help message is not ready yet.
   exit 0
 }
 
-# Print error running check and set exit status
-check_err () {
-  printf "${color_alert}error running check: files differ: %s${color_normal}\n\n" "$1"
+# Print error and set exit status
+put_err () {
+  printf "${color_alert}error: %s${color_normal}\n" "$1"
   return 1
+}
+
+# Print check error and set status
+check_err () {
+  echo
+  put_err "(running check) files differ: $1"
+  return $?
 }
 
 # Print diff between files in group $1 and files in $2
@@ -119,78 +143,139 @@ check_diff () {
   done
 }
 
-# Run integrity checks 
-runchecks () {
+# Check $1->$2
+do_check () {
   # Opening separator
   printf "\n$SEP"
 
+  # Print running checks message
+  printf "${color_active}running checks...${color_normal}"
+
+  # Print checkrun notice
+  if [ -n "$check_run" ]; then
+    printf " (CHECKRUN)"
+  fi
+
+  # Closing separator
+  printf "\n$SEP"
+
+  # Expected full output path
+  _src="$1"
+  _name="$(basename -- "$_src")"
+  _out="$2/$_name"
+
+  # If not in no checks mode
+  if [ -z "$nochecks" ]; then
+    # Run lightweight checks
+    if [[ -e $_out ]]; then # Destination exists
+      if [ -n "$verbose" ]; then
+        # Found it
+        printf "${color_active}-> $_out found${color_normal}\n"
+      fi
+
+      # If not in lightweight mode
+      if [ -z "$lightweight" ]; then # Run full check
+        # Check the type of src
+        if [[ -d $_src ]]; then # is directory
+          if [ -n "$verbose" ]; then
+            # Print differences
+            diff --no-dereference -r -q $_src/ $_out/ || check_err "$_src$arrow$_out"
+          else
+            # Only print error msg if finds any difference
+            diff --no-dereference -r -q $_src/ $_out/ > /dev/null || check_err "$_src$arryw$_out"
+          fi
+        elif [[ -f $_src ]]; then # is file
+          cmp --silent $_src $_out || check_err "$_out"
+        else # is none of that
+          put_err "could not access src: $_src"
+          echo "(found not a directory and not a file)"
+          return 1
+        fi
+      fi
+    else # Destination not found
+      put_err "could not find dest: $_out"
+      return 1
+    fi
+  fi
+}
+
+# Sync $1->$2
+do_sync () { 
+  # Prepare for cloning
+  printf "$SEP${color_title}cloning (%s)${color_normal}\n$SEP\n" "$1"
   if [ -n "$verbose" ]; then
-    # Print checkrun notice
-    if [ -n "$check_run" ]; then
-      printf "CHECKRUN SPECIFIED (-C|--check-run)\n"
+    echo verifying path to destination...
+  fi
+
+  # Check if dir exists (or is file).
+  # Create it otherwise
+  if [[ -d $2 ]]; then # Dir exists
+    if [ -n "$verbose" ]; then
+      printf "%s: dir already exists\n\n" "$2"
+      printf "${color_hint}skipping mkdir${color_normal}\n\n"
+    fi
+  elif [[ -f $2 ]]; then # Is file
+    if [ -n "$verbose" ]; then
+      printf "%s: file already exists\n\n" "$2"
+    fi
+  elif [[ -e $2 ]]; then # Exists but unrecognized
+    put_err "$2: unrecognized type (not file or directory)\n"
+  else # Dir not found
+    if [ -n "$verbose" ]; then
+      printf "%s: could not find dir\n\n" "$2"
+      printf "${color_hint}running: mkdir -p %s${color_normal}\n\n" "$2"
+    fi
+
+    # If not in dry run
+    if [ -z "$dry_run" ]; then
+      # Try to create path to destination
+      mkdir -p "$2" 2>/dev/null || put_err "mkdir: could not create directory"
     fi
   fi
 
-  # Print running checks message
-  printf "${color_active}running checks...${color_normal}\n$SEP"
+  # Start syncing
+  printf "$SEP${color_title}syncing (%s$arrow%s)${color_normal}\n$SEP" "$1" "$2"
 
-  # Check that each source is now found in dest
-  for src in ${sources[@]}; do
-    name="$(basename -- '$src')"
-    out="$dest/$name"
+  # Do the actual copying
+  if [ -n "$verbose" ]; then
+    # Copy each source to destination
+    rsync -aP $options "$1" "$2"
+  else
+    # Quiet mode
+    rsync -aP $options "$1" "$2" > /dev/null
+  fi
 
-    # If not in no checks mode
-    if [ -z "$nochecks" ]; then
-      # Run lightweight checks
-      if [[ -f $out ]]; then # Destination exists
-        if [ -n "$verbose" ]; then
-          # Found it
-          printf "${color_active}-> $out found${color_normal}\n"
-        fi
-
-        # If not in lightweight mode
-        if [ -z "$lightweight" ]; then # Run full check
-          # Check the type of src
-          if [[ -d $src ]]; then # is directory
-            if [ -n "$verbose" ]; then
-              # Print differences
-              diff -r -q $src/ $out/ || check_err "$out"
-            else
-              # Only print error msg if finds any difference
-              diff -r -q $src/ $out/ > /dev/null || check_err "$out"
-            fi
-          elif [[ -f $src ]]; then # is file
-            cmp --silent $src $out || check_err "$out"
-          else # is none of that
-            printf "${color_alert}error: could not access src: %s${color_normal}\n\n" "$src"
-            echo "(found not a directory and not a file)"
-            return 1
-          fi
-        fi
-      else # Destination not found
-        printf "${color_alert}error: could not find dest: %s${color_normal}\n\n" "$out"
-        return 1
-      fi
-    fi
-  done
+  # If not in dry run or if in check run
+  if [ -z "$dry_run" ] || [ -n "$check_run" ]; then
+    # Run check
+    do_check "$1" "$2"
+    [[ $? -gt 0 ]] && { put_err "traceback: failed while running check on $1->$2\n"; exit $?; }
+    [[ -n verbose ]] && printf "\nall tests passed\n"
+  fi
 }
 
-# Parse exact-match command arguments
+#
+# Params
+#
+
+# Parse command arguments
 while [[ $# -gt 0 ]]; do
   # Shift makes you parse next argument as $1.
   # Shift n makes you move n arguments ahead.
   case $1 in
-    -s|--sources)
+    -s|--src)
       # Source files to copy to destination
-      source_override=1
-      noprompt=1
       IFS=', ' read -r -a sources <<< "$2"
       shift 2
       ;;
-    -f|--source-file)
-      # File with sources to copy to destination
-      noprompt=1
-      IFS=', ' read -r -a source_file <<< "$2"
+    -d|--dest)
+      # Unique destination path
+      IFS=', ' read -r -a destination <<< "$2"
+      shift 2
+      ;;
+    -f|--config)
+      # Replace default config file 
+      IFS=', ' read -r -a config_file <<< "$2"
       shift 2
       ;;
     -i|--ignore-existing)
@@ -198,7 +283,7 @@ while [[ $# -gt 0 ]]; do
       options+=' --ignore-existing'
       shift
       ;;
-    -d|--delete)
+    -D|--delete)
       # Delete files that were deleted in source
       options+=' --delete'
       shift
@@ -266,7 +351,7 @@ while [[ $# -gt 0 ]]; do
       shift
       ;;
     -*|--*)
-      echo "Unknown option $1"
+      echo "$PROGRAM_NAME: unknown option $1"
       exit 1
       ;;
     *)
@@ -290,44 +375,55 @@ else
   dest="$PWD"
 fi
 
+#
+# Startup
+#
+
 if [ -n "$verbose" ]; then
   SEP=$separator
 fi
 
 # Print launch message
-printf "$SEP${color_title}starting clone...${color_normal}\n$SEP\n"
+printf "\n$SEP${color_title}starting $PROGRAM_NAME...${color_normal}\n$SEP\n"
 
 # Print a message if in dry run
 if [ -n "$dry_run" ]; then
   printf "${color_active}(running dry run -- no changes will be applied)${color_normal}\n\n"
 fi
 
-# If source_file is set and file exists and --sources
-# parameter is not set.
-if [ -n "$source_file" ] && [[ -f "$source_file" ]] && [ -z "$source_override" ]; then
-  # Reinitialize sources
-  sources=
-  # Read sources from file
-  i=0
-  if [ -n "$verbose" ]; then
-    echo $source_file: fetching sources...
-  fi
-  while IFS= read -r source; do
-    # Ignore lines that start with a #
-    [[ $source =~ ^#.* ]] && continue
+#
+# Confirmation prompt
+#
 
-    # Add line entries to sources
-    sources[i]="$source"
-    let i++
-  done < $source_file
-fi
-
+# Loop on unrecognized keys
 while true; do
   # List entries found
   if [ -n "$verbose" ] || [ -n "$interactive" ] || [ -z "$noprompt" ]; then
-    for src in ${sources[@]}; do
-      printf "${color_task}$list_prefix FOUND entry: %s${color_normal}\n" "$src"
-    done
+    # If source parameter is defined
+    if [ -n "$sources" ]; then
+      # If destination parameter was not set
+      if [ -z "$destination" ]; then
+        put_err "expecting --dest when using --src parameter but found nothing\n"
+        exit $?
+      else
+        # List param defined sources
+        for src in ${sources[@]}; do
+          printf "${color_task}$list_prefix FOUND source: %s${color_normal}\n" "$src"
+        done
+        printf "${color_subtitle}$list_prefix destination: %s${color_normal}\n" "$destination"
+      fi
+    else
+      if [ -n "$sync_map" ]; then
+        # Print config defined sync map
+        for src in "${!sync_map[@]}"; do
+          printf "${color_task}$list_prefix FOUND mapping: %s$arrow%s${color_normal}\n" "$src" "${sync_map[$src]}"
+        done
+      else
+        put_err "sync map not found\n"
+        exit $?
+      fi
+    fi
+    # Print newline
     echo
   fi
 
@@ -346,48 +442,39 @@ while true; do
   fi
 done
 
+# Suppress prompt hint
 if [ -n "$verbose" ] && [ -z "$noprompt" ]; then
-  printf "\n${color_hint}(you can omit this prompt by passing \`-y\` or \`--noprompt\`)${color_normal}\n\n"
+  printf "${color_hint}(you can omit this prompt by passing \`-y\` or \`--noprompt\`)${color_normal}\n\n"
 fi
 
-# For each source entry found
-for src in ${sources[@]}; do
-  printf "$SEP${color_title}cloning (%s)${color_normal}\n$SEP\n" "$src"
-  if [ -n "$verbose" ]; then
-    echo checking path to destination...
-    printf "${color_hint}running mkdir -p for %s${color_normal}\n\n" "$dest"
-  fi
+#
+# Sync
+#
 
-  # If not in dry run
-  if [ -z "$dry_run" ]; then
-    # Create path to destination if it doesn't exist
-    mkdir -p "$dest" 2>/dev/null
-  fi
-
-  printf "$SEP${color_title}syncing (%s$arrow%s)${color_normal}\n$SEP" "$src" "$dest"
-
-  # Do the copying
-  if [ -n "$verbose" ]; then
-    # Copy each source to the destination
-    rsync -aP $options "$src" "$dest"
-  else
-    # Quiet mode
-    rsync -aP $options "$src" "$dest" > /dev/null
-  fi
-done
-
-# If not in dry run or if in check run
-if [ -z "$dry_run" ] || [ -n "$check_run" ]; then
-  runchecks
+# Run sync for either sources or maps
+if [ -n $sources ]; then
+  # For each source entry found
+  for src in ${sources[@]}; do
+    # Sync $src->$dest
+    do_sync "$src" "$destination"
+  done
+else
+  # For each map key found
+  for src in "${!sync_map[@]}"; do
+    # Sync $src->$dest
+    do_sync "$src" "${sync_map[$src]}"
+  done
 fi
+
+#
+# Done
+#
 
 # All over
-[ "$?" -eq "0" ] && printf "done."
+[ "$?" -eq "0" ] && printf "done.\n\n"
 
 #####################################
 # TODO
+# - re-enable checks
+# - add support for incremental backups
 # - add support for remote backups
-#
-# - configure 2 tasks:
-#  - backup (incremental backups in directory on hdd1__bak)
-#  - sync (overwrite non-deleting copying location->destination) (i.e: metadisk)
