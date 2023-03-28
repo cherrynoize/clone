@@ -8,10 +8,6 @@
 # Helps configure jobs and tasks for backing up or syncing files
 # and directories with rsync
 
-#
-# Options
-#
-
 # Path to clone dir
 clone_dir="$HOME/.clone"
 
@@ -19,7 +15,7 @@ clone_dir="$HOME/.clone"
 jobs_dir="$clone_dir/jobs"
 
 # Path to config file
-config_file="$clone_dir/config.sh"
+config_file="./config_test.sh"
 
 # Program name
 PROGRAM_NAME="clone"
@@ -54,22 +50,13 @@ arrow="->"
 # Verbose output separator
 #separator="============================\n"
 
-#
 # Initialization
-#
-
-# Initialize variables
+shopt -s extglob # Remove trailing slashes
 positional_args=()
+printf "${color_normal}" # Set initial color
 
-# Source config
-. $config_file
-
-# Set initial color 
-printf "${color_normal}"
-
-#
-# Functions
-#
+# Here we define a lot of useful functions
+# :(funcs)
 
 # Print version number and quit
 ver () {
@@ -100,47 +87,40 @@ print_help () {
   exit 0
 }
 
+# Print warning msg
+put_warn () {
+  printf "${color_hint}%b${color_normal}\n" "$1"
+}
+
 # Print error and set exit status
 put_err () {
-  printf "${color_alert}error: %s${color_normal}\n" "$1"
+  printf "${color_alert}error: %b${color_normal}\n" "$1"
   return 1
 }
 
-# Print check error and set status
-check_err () {
+# Print sync check error and set status
+sync_err () {
   echo
-  put_err "(running check) files differ: $1"
-  return $?
+
+  # Output error
+  put_err "files differ in: $1\n"
+
+  # Save status from put_err
+  _status="$?"
+ 
+  # Print diff grepped output
+  printf "%s\n\n" "$diff_res"
+
+  # Return put_err status
+  return $_status
 }
 
-# Print diff between files in group $1 and files in $2
-check_diff () {
-  # For each file in group $1
-  for f in $1; do
-    # Skip if file doesn't exist
-    # (Avoids problems when no files are matched)
-    if [[ ! -e "$f" ]]; then continue; fi
-
-    # Fetch basename
-    name="$(basename -- '$f')"
-
-    # Destination path
-    ldest="$2/$name"
-
-    # Check differences between $f and $2
-    if [ -n "$verbose" ]; then
-      printf "checking for lines unique to %s...\n\n" "$f"
-    fi
-
-    # Find lines unique to $f
-    if [ "$verbose" -gt "1" ]; then
-      # Show lines unique to $f 
-      comm -23 "$f" "$ldest" 2>/dev/null || check_err "$f->$ldest"
-    else
-      # Only show error message
-      comm "$f" "$ldest" > /dev/null 2>&1 || check_err "$f->$ldest"
-    fi
-  done
+# Finds differences unique to src
+did_sync () {
+  diff_res=$(diff --no-dereference -r -q $_src $_dest | grep -v "^Only in $_dest")
+  if [ -n "$diff_res" ]; then
+    return 1
+  fi
 }
 
 # Check $1->$2
@@ -153,7 +133,7 @@ do_check () {
 
   # Print checkrun notice
   if [ -n "$check_run" ]; then
-    printf " (CHECKRUN)"
+    printf " (CHECK RUN)"
   fi
 
   # Closing separator
@@ -162,41 +142,39 @@ do_check () {
   # Expected full output path
   _src="$1"
   _name="$(basename -- "$_src")"
-  _out="$2/$_name"
+  _dest="$2/$_name"
 
   # If not in no checks mode
   if [ -z "$nochecks" ]; then
     # Run lightweight checks
-    if [[ -e $_out ]]; then # Destination exists
+    if [[ -e $_dest ]]; then # Dest exists
       if [ -n "$verbose" ]; then
         # Found it
-        printf "${color_active}-> $_out found${color_normal}\n"
+        printf "${color_active}-> FOUND dest: $_dest${color_normal}\n"
       fi
 
-      # If not in lightweight mode
+      # If not lightweight mode
       if [ -z "$lightweight" ]; then # Run full check
-        # Check the type of src
-        if [[ -d $_src ]]; then # is directory
+        if [[ -e $_src ]]; then # Source exists
           if [ -n "$verbose" ]; then
             # Print differences
-            diff --no-dereference -r -q $_src/ $_out/ || check_err "$_src$arrow$_out"
+            did_sync || sync_err "$_src$arrow$_dest"
           else
-            # Only print error msg if finds any difference
-            diff --no-dereference -r -q $_src/ $_out/ > /dev/null || check_err "$_src$arryw$_out"
+            # Only print error msg
+            did_sync > /dev/null || sync_err "$_src$arryw$_dest"
           fi
-        elif [[ -f $_src ]]; then # is file
-          cmp --silent $_src $_out || check_err "$_out"
-        else # is none of that
+        else # Src not found
           put_err "could not access src: $_src"
           echo "(found not a directory and not a file)"
-          return 1
+          return $?
         fi
       fi
-    else # Destination not found
-      put_err "could not find dest: $_out"
-      return 1
+    else # Dest not found
+      put_err "could not find dest: $_dest"
+      return $?
     fi
   fi
+  return $?
 }
 
 # Sync $1->$2
@@ -249,14 +227,128 @@ do_sync () {
   if [ -z "$dry_run" ] || [ -n "$check_run" ]; then
     # Run check
     do_check "$1" "$2"
-    [[ $? -gt 0 ]] && { put_err "traceback: failed while running check on $1->$2\n"; exit $?; }
+    [[ $? -ne 0 ]] && { put_err "traceback: failed while running check on $1->$2\nwill exit now.\n"; exit $?; }
     [[ -n verbose ]] && printf "\nall tests passed\n"
   fi
 }
 
-#
-# Params
-#
+# Run a whole sync job 
+exec_job () {
+  # Confirm prompt
+  while true; do # Loop on unrecognized input
+    # List entries found
+    if [ -n "$verbose" ] || [ -n "$interactive" ] || [ -z "$noprompt" ]; then
+      # If source parameter is defined
+      if [ -n "$sources" ]; then
+        # If destination parameter was not set
+        if [ -z "$destination" ]; then
+          put_err "expecting --dest when using --src parameter but found nothing\n"
+          exit $?
+        else
+          # List param defined sources
+          for src in ${sources[@]}; do
+            printf "${color_task}$list_prefix FOUND source: %s${color_normal}\n" "$src"
+          done
+          printf "${color_subtitle}$list_prefix destination: %s${color_normal}\n" "$destination"
+        fi
+      else
+        if [ "${#sync_map[@]}" -gt 0 ]; then
+          # Print config defined sync map
+          for src in "${!sync_map[@]}"; do
+            printf "${color_task}$list_prefix FOUND mapping: %s$arrow%s${color_normal}\n" "$src" "${sync_map[$src]}"
+          done
+        else
+          put_err "sync map not found\n"
+          exit $?
+        fi
+      fi
+      # Print newline
+      echo
+    fi
+
+    # Prompt user for confirmation
+    if [ -n "$interactive" ] || [ -z "$noprompt" ]; then
+      read -n 1 -p "Are you sure you want to proceed? (y/N) " input
+      echo
+      case $input in
+        [Yy]* ) echo; break;;
+        [Nn]* ) exit;;
+        "" ) exit;;
+        * ) printf "\n${color_alert}unrecognized option: %s${color_normal}\n\n" "$input";;
+      esac
+    else
+      break;
+    fi
+  done
+
+  # Suppress prompt hint
+  if [ -n "$verbose" ] && [ -z "$noprompt" ]; then
+    put_warn "(you can suppress this prompt by passing \`-y\` or \`--noprompt\`)\n"
+  fi
+
+  # Sync
+  if [ -n "$sources" ]; then # Run sync with sources
+    # For each source entry found
+    for src in ${sources[@]}; do
+      # Sync $src->$dest
+      do_sync "$src" "$destination"
+    done
+  else # Run sync with maps
+    # For each map key found
+    for src in "${!sync_map[@]}"; do
+      # Sync $src->$dest
+      do_sync "$src" "${sync_map[$src]}"
+    done
+  fi
+
+  # Print work done
+  if [ -n "$verbose" ]; then
+    echo
+    if [ -n "$sources" ]; then
+      # List param defined sources
+      for src in ${sources[@]}; do
+        printf "${color_task}$list_prefix synced from: %s${color_normal}\n" "$src"
+      done
+      printf "${color_subtitle}$list_prefix successfully synced to: %s${color_normal}\n" "$destination"
+    else
+      if [ "${#sync_map[@]}" -gt 0 ]; then
+        # Print config defined sync map
+        for src in "${!sync_map[@]}"; do
+          printf "${color_task}$list_prefix successfully synced: %s$arrow%s${color_normal}\n" "$src" "${sync_map[$src]}"
+        done
+      else
+        put_err "sync map no longer available\ndon't know why\n"
+        exit $?
+      fi
+    fi
+    echo
+  fi
+}
+
+# Here we start handling command line arguments
+# :(args)
+
+# Getopt version
+getopt --test > /dev/null 
+
+# If returns 4 parse with getopt
+if [[ $? -ne 4 ]]; then
+  put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
+else
+  # Colon after option means additional arg
+  _longopts=src:,dest:,dry-run,check-run,verbose
+  _options=s:d:nCv
+
+  # Parse command line arguments using getopt
+  PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- "$@")
+  if [[ $? -ne 0 ]]; then
+    _options= # Reset sentinel variable 
+    put_err "failed to parse with \`getopt\`...\ndefaulting to std handling..."
+  else
+    # Set getopt output
+    eval set -- "$PARSED"
+  fi
+fi
 
 # Parse command arguments
 while [[ $# -gt 0 ]]; do
@@ -264,13 +356,17 @@ while [[ $# -gt 0 ]]; do
   # Shift n makes you move n arguments ahead.
   case $1 in
     -s|--src)
+      # Remove any amount of trailing slashes
+      _trimmed_s="${2%%+(/)}"
       # Source files to copy to destination
-      IFS=', ' read -r -a sources <<< "$2"
+      IFS=', ' read -r -a sources <<< "$_trimmed_s"
       shift 2
       ;;
     -d|--dest)
-      # Unique destination path
-      IFS=', ' read -r -a destination <<< "$2"
+      # Remove any amount of trailing slashes
+      _trimmed_d="${2%%+(/)}"
+      # Destination path
+      IFS=', ' read -r -a destination <<< "$_trimmed_d"
       shift 2
       ;;
     -f|--config)
@@ -350,6 +446,10 @@ while [[ $# -gt 0 ]]; do
       print_help
       shift
       ;;
+    --)
+      shift
+      break
+      ;;
     -*|--*)
       echo "$PROGRAM_NAME: unknown option $1"
       exit 1
@@ -361,114 +461,40 @@ while [[ $# -gt 0 ]]; do
   esac
 done
 
-# Restore positional arguments
-set -- "${positional_args[@]}"
-
-# Parse free arguments
-if [[ -n $1 ]]; then
-  # Remove trailing slashes
-  shopt -s extglob
-  # Remove any amount of trailing slashes from dest
-  dest="${1%%+(/)}"
-else
-  # Set working directory as destination
-  dest="$PWD"
+# If getopt wasn't used
+if [ -z "$_options" ]; then
+  # Restore positional arguments
+  set -- "${positional_args[@]}"
 fi
 
-#
-# Startup
-#
+# Free arguments are now set as $@ 
+# Can be accessed later on
+
+# From here on we start program execution
+# :(startup)
+
+# Print config file location
+if [ -e "$config_file" ]; then
+  printf "\nconfig file found: %s\n" "$config_file"
+  . $config_file # Source file
+else
+  printf "\nconfig not found\n"
+fi
 
 if [ -n "$verbose" ]; then
   SEP=$separator
 fi
 
 # Print launch message
-printf "\n$SEP${color_title}starting $PROGRAM_NAME...${color_normal}\n$SEP\n"
+printf "\n${SEP}${color_title}starting ${PROGRAM_NAME}...${color_normal}\n${SEP}\n"
 
 # Print a message if in dry run
 if [ -n "$dry_run" ]; then
   printf "${color_active}(running dry run -- no changes will be applied)${color_normal}\n\n"
 fi
 
-#
-# Confirmation prompt
-#
-
-# Loop on unrecognized keys
-while true; do
-  # List entries found
-  if [ -n "$verbose" ] || [ -n "$interactive" ] || [ -z "$noprompt" ]; then
-    # If source parameter is defined
-    if [ -n "$sources" ]; then
-      # If destination parameter was not set
-      if [ -z "$destination" ]; then
-        put_err "expecting --dest when using --src parameter but found nothing\n"
-        exit $?
-      else
-        # List param defined sources
-        for src in ${sources[@]}; do
-          printf "${color_task}$list_prefix FOUND source: %s${color_normal}\n" "$src"
-        done
-        printf "${color_subtitle}$list_prefix destination: %s${color_normal}\n" "$destination"
-      fi
-    else
-      if [ -n "$sync_map" ]; then
-        # Print config defined sync map
-        for src in "${!sync_map[@]}"; do
-          printf "${color_task}$list_prefix FOUND mapping: %s$arrow%s${color_normal}\n" "$src" "${sync_map[$src]}"
-        done
-      else
-        put_err "sync map not found\n"
-        exit $?
-      fi
-    fi
-    # Print newline
-    echo
-  fi
-
-  # Prompt user for confirmation
-  if [ -n "$interactive" ] || [ -z "$noprompt" ]; then
-    read -n 1 -p "Are you sure you want to proceed? (y/N) " input
-    echo
-    case $input in
-      [Yy]* ) echo; break;;
-      [Nn]* ) exit;;
-      "" ) exit;;
-      * ) printf "\n${color_alert}unrecognized option: %s${color_normal}\n\n" "$input";;
-    esac
-  else
-    break;
-  fi
-done
-
-# Suppress prompt hint
-if [ -n "$verbose" ] && [ -z "$noprompt" ]; then
-  printf "${color_hint}(you can omit this prompt by passing \`-y\` or \`--noprompt\`)${color_normal}\n\n"
-fi
-
-#
-# Sync
-#
-
-# Run sync for either sources or maps
-if [ -n $sources ]; then
-  # For each source entry found
-  for src in ${sources[@]}; do
-    # Sync $src->$dest
-    do_sync "$src" "$destination"
-  done
-else
-  # For each map key found
-  for src in "${!sync_map[@]}"; do
-    # Sync $src->$dest
-    do_sync "$src" "${sync_map[$src]}"
-  done
-fi
-
-#
-# Done
-#
+# Run jobs
+exec_job
 
 # All over
 [ "$?" -eq "0" ] && printf "done.\n\n"
