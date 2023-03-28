@@ -1,29 +1,28 @@
 # Clone backup utility
 
-I've always been kinda scared when I had to do a backup. Despite
-**rsync** being sort of understanding with my mistakes, there's
-something that feels *off* about putting my whole life in the
-hands of a single rsync command. But it's not so much rsync, as
-much as my ability to store files in pre-arranged sorted locations.
+A more easily accessible backup tool with focus on consistency
+and automation. 
 
-(That trailing slash thing doesn't help though.)
+#### Fast, simple, just *rsync* -- except less scary.
 
-Note that CLI is not the offender here. In fact here I come to you
-with **Clone**: *my own* CLI backup utility. It is fast, it is
-simple: it's just rsync -- except less scary.
+## Why rsync-2?
+
+You may feel like you have no need for this application,
+especially if you already mastered a certain degree of confidence
+using rsync daily. And that is by all means correct, if you're
+comfortable running rsync commands and using it to automate tasks
+you can close this tab now. If you, on the other hand, wanted a
+simpler and more effective way of configuring backup tasks and
+automated syncs using separate job files to define each task and
+verifying they are carried out as expected after execution, you
+may want to look into this.
 
 While rsync's versatility makes it by far one of the most
-powerful tools for all your remote (and local) file-copying
-needs, this little bash script aims at reducing your mind's
-overhead by turning manual execution of the whole dull backup
-process into a pre-arranged mindless background job which you
-hopefully never have to worry about ever again (if you don't want
-to).
-
-### Also, some added bonuses
-
-
-Say stuff about backup and sync modes
+powerful file-copying tools out there, this humble bash script
+aims at reducing your mind's overhead by turning manual execution
+of the whole dull backup process into a pre-arranged mindless
+background job which you hopefully never have to worry about
+ever again (unless you want to).
 
 ## Usage
 
