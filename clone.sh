@@ -17,7 +17,7 @@ config_file="./config_test.sh"
 JOB_FILE_EXT=".sh"
 
 # Version number
-VERSION="0.00.3"
+VERSION="0.00.4"
 
 # Colorschemes
 RED='\033[1;31m'
@@ -223,8 +223,8 @@ do_sync () {
     rsync -aP $options "$1" "$2" > /dev/null
   fi
 
-  # If not in dry run or if in check run
-  if [ -z "$dry_run" ] || [ -n "$check_run" ]; then
+  # If checks option is set
+  if [ -n "$checks" ]; then
     # Run check
     do_check "$1" "$2"
     [[ $? -ne 0 ]] && {
@@ -318,7 +318,7 @@ if [[ $? -ne 4 ]]; then
   put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
 else
   # Colon after option means additional arg
-  _longopts="src:,dest:,config:,list,all,ignore-existing,delete,update,nochecks,lightweight,check-run,dry-run,safe,no-prompt,interactive,progress,verbose,logorrheic,version,help"
+  _longopts="src:,dest:,config:,list,all,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,no-prompt,interactive,progress,verbose,logorrheic,version,help"
   _options="s:d:f:laiDucLCnSyIpvVh"
 
   # Parse command line arguments using getopt
@@ -380,9 +380,9 @@ while [[ $# -gt 0 ]]; do
       options+=' -u'
       shift
       ;;
-    -c|--nochecks)
-      # Skip check entirely
-      nochecks=1
+    -c|--checks)
+      # Run additional checks
+      checks=1
       shift
       ;;
     -L|--lightweight)
@@ -393,6 +393,7 @@ while [[ $# -gt 0 ]]; do
     -C|--check-run)
       # Dry run with checks
       check_run=1
+      checks=1
       dry_run=1
       options+=' -n'
       shift
