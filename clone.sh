@@ -144,35 +144,32 @@ do_check () {
   _name="$(basename -- "$_src")"
   _dest="$2/$_name"
 
-  # If not in no checks mode
-  if [ -z "$nochecks" ]; then
-    # Run lightweight checks
-    if [[ -e $_dest ]]; then # Dest exists
-      if [ -n "$verbose" ]; then
-        # Found it
-        printf "${color_active}${list_prefix} FOUND dest: $_dest${color_normal}\n"
-      fi
-
-      # If not lightweight mode
-      if [ -z "$lightweight" ]; then # Run full check
-        if [[ -e $_src ]]; then # Source exists
-          if [ -n "$verbose" ]; then
-            # Print differences
-            did_sync || sync_err "$_src${arrow}$_dest"
-          else
-            # Only print error msg
-            did_sync > /dev/null || sync_err "$_src$arryw$_dest"
-          fi
-        else # Src not found
-          put_err "could not access src: $_src"
-          echo "(found not a directory and not a file)"
-          return $?
-        fi
-      fi
-    else # Dest not found
-      put_err "could not find dest: $_dest"
-      return $?
+  # Run lightweight checks
+  if [[ -e $_dest ]]; then # Dest exists
+    if [ -n "$verbose" ]; then
+      # Found it
+      printf "${color_active}${list_prefix} FOUND dest: $_dest${color_normal}\n"
     fi
+
+    # If not lightweight mode
+    if [ -z "$lightweight" ]; then # Run full check
+      if [[ -e $_src ]]; then # Source exists
+        if [ -n "$verbose" ]; then
+          # Print differences
+          did_sync || sync_err "$_src${arrow}$_dest"
+        else
+          # Only print error msg
+          did_sync > /dev/null || sync_err "$_src$arryw$_dest"
+        fi
+      else # Src not found
+        put_err "could not access src: $_src"
+        echo "(not a directory or file)"
+        return $?
+      fi
+    fi
+  else # Dest not found
+    put_err "could not find dest: $_dest"
+    return $?
   fi
   return $?
 }
@@ -225,7 +222,7 @@ do_sync () {
 
   # If checks option is set
   if [ -n "$checks" ]; then
-    # Run check
+    # Run checks
     do_check "$1" "$2"
     [[ $? -ne 0 ]] && {
       put_err "traceback: failed while running check on $1->$2\nwill exit now.\n";
@@ -388,6 +385,7 @@ while [[ $# -gt 0 ]]; do
     -L|--lightweight)
       # Perform lighter checks
       lightweight=1
+      checks=1
       shift
       ;;
     -C|--check-run)
