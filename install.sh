@@ -1,10 +1,15 @@
 #!/bin/sh
-cp clone.sh /usr/local/bin/clone
-mkdir $HOME/.clone 2>/dev/null
-cp config.sh $HOME/.clone
-cp -r jobs $HOME/.clone
+# Installs clone into installation dir and optionally copies default
+# jobs and config files into config dir
 
-# Installs clone in /usr/local/bin and copies default jobs and
-# config files into ~/.clone
-#
-# (note: this will overwrite existing files)
+install_dir="/usr/local/bin" # Installation dir
+clone_dir="$HOME/.clone" # Config dir
+
+cp "clone.sh" "/clone"
+mkdir -p "$clone_dir" 2>/dev/null # Creates config dir 
+mkdir -p "${clone_dir}/jobs" # Creates jobs dir
+
+# <!-- Warning: overwrites!
+#cp "config.sh" "$clone_dir" # Copy default config file 
+#cp -r "jobs" "$clone_dir" # Copies example jobs
+# !-->
