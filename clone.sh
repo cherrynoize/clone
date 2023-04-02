@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #   ____ _                        _
 #  / ___| | ___  _ __   ___   ___| |__
 # | |   | |/ _ \| '_ \ / _ \ / __| '_ \  ~ Clone simple backup utility
@@ -13,8 +13,24 @@ clone_path="$HOME/.clone"
 # Path to config file
 config_file="./config_test.sh"
 
+# Location for log files
+log_file="${clone_path}/clone.log"
+err_file="${clone_path}/clone_err.log"
+
 # Extension for job files
 JOB_FILE_EXT=".sh"
+
+# Extension for log backup files
+BAK_EXT=".bak"
+
+# Min number of changes for incremental backup
+min_changes=1
+
+# Date format for writing incremental backups
+# Date precision also defines min interval between incremental 
+# backups (i.e: the least significant unit)
+date_fmt="+%Y-%m-%d_%H-%M-%S" # Try to update backup every second
+#date_fmt="+%Y-%m-%d" # Daily backup
 
 # Version number
 VERSION="0.00.4"
@@ -31,6 +47,7 @@ BG_PINK_I='\033[2;41m' # No color, italic
 
 # Program colors
 color_alert=$RED
+color_warn=$PURPLE
 color_title=$YELLOW
 color_subtitle=$ORANGE
 color_hint=$PURPLE
@@ -87,7 +104,7 @@ print_help () {
 
 # Print warning msg
 put_warn () {
-  printf "${color_hint}%b${color_normal}\n" "$1"
+  printf "${color_warn}%b${color_normal}\n" "$1"
 }
 
 # Print error and set exit status
@@ -211,13 +228,50 @@ do_sync () {
   # Start syncing
   printf "$SEP${color_title}syncing (%s${arrow}%s)${color_normal}\n$SEP" "$1" "$2"
 
+  if [ -f "${log_file}" ] && [[ "$bak_file" -lt 2 ]]; then
+    # Backup logs
+    if [[ "$verbose" -gt "1" ]]; then
+      printf "creating log backup: %1%2\n\n" "${log_file}" "${BAK_EXT}"
+    fi
+    cp "${log_file}" "${log_file}${BAK_EXT}"
+  fi
+  
   # Do the actual copying
-  if [ -n "$verbose" ]; then
+  if [ -n "$verbose" ]; then # Also write to stdout
     # Copy each source to destination
-    rsync -aP $options "$1" "$2"
-  else
+    rsync -aP $options "$1" "$2" > >(tee "${log_file}") 2> >(tee "${err_file}" >&2)
+  else # Write to logs only
     # Quiet mode
-    rsync -aP $options "$1" "$2" > /dev/null
+    # Passes stdout only to pipe
+    rsync -aP $options "$1" "$2" 2> >(tee "${err_file}" >&2) > /dev/null 
+#   rsync -aP $options "$1" "$2" 2>&1 > /dev/null | tee "${err_file}"
+  fi
+
+  # Save incremental backups
+  if [ -n "$incremental" ]; then
+    # Count changes
+    changes=$(wc -l "${log_file}" | cut -d" " -f1)
+
+    if [ -n "$verbose" ]; then
+      put_warn "warning: using \`verbose\` flag with \`incremental\` mode\nnumber of min changes might not be respected"
+    fi
+
+    # If enough lines found in log 
+    if [[ "$changes" -ge "$min_changes" ]]; then
+      # Fetch date
+      _date=$(date ${date_fmt})
+
+      # If current date snapshot does not exist
+      if [ ! -e "${2}_${_date}" ]; then
+        # Make hardlinked copy for current date
+        cp -al "$2" "${2}_${_date}"
+        # Rename log files
+        cp "${log_file}" "${log_file}_${_date}"
+        if [ -f "${log_file}${BAK_EXT}" ] && [ -z "$bak_file" ]; then
+          cp "${log_file}${BAK_EXT}" "${log_file}${BAK_EXT}_${_date}"
+        fi
+      fi
+    fi
   fi
 
   # If checks option is set
@@ -315,8 +369,8 @@ if [[ $? -ne 4 ]]; then
   put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
 else
   # Colon after option means additional arg
-  _longopts="src:,dest:,config:,list,all,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,no-prompt,interactive,progress,verbose,logorrheic,version,help"
-  _options="s:d:f:laiDucLCnSyIpvVh"
+  _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,no-prompt,interactive,progress,verbose,logorrheic,no-logs,bak:,background,version,help"
+  _options="s:d:f:laIiDucLCnSyIpvNVh"
 
   # Parse command line arguments using getopt
   PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- "$@")
@@ -360,6 +414,12 @@ while [[ $# -gt 0 ]]; do
     -a|--all)
       # Run all jobs
       all_jobs=1
+      shift
+      ;;
+    -I|--incremental)
+      # Create incremental backups in dest
+      incremental=1
+      options+=' --delete -i'
       shift
       ;;
     -i|--ignore-existing)
@@ -427,14 +487,32 @@ while [[ $# -gt 0 ]]; do
       ;;
     -v|--verbose)
       # Print more stuff
+      if [ -n "$verbose" ]; then
+        options+=' -i'
+      fi
       let verbose++
       options+=' -v'
       shift
       ;;
     --logorrheic)
       # Print even more stuff
-      let verbose++
-      options+=' -vv'
+      let verbose+=2
+      options+=' -vv -i'
+      shift
+      ;;
+    -N|--no-logs)
+      # Flush logs
+      log_file="/dev/null"
+      shift
+      ;;
+    --bak)
+      # Log file bak behaviour
+      IFS=', ' read -r -a bak_file <<< "$2"
+      shift 2
+      ;;
+    --background)
+      # Don't burn resources
+      run_in_background=1
       shift
       ;;
     -V|--version)
@@ -473,6 +551,12 @@ fi
 
 # From here on we start program execution
 # :(startup)
+
+if [ -n "$run_in_background" ]; then
+  # Run this process with real low priority
+  ionice -c 3 -p $$
+  renice +12  -p $$
+fi
 
 # Print config file location
 if [ -e "$config_file" ]; then
