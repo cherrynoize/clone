@@ -5,9 +5,8 @@
 install_dir="/usr/local/bin" # Installation dir
 clone_dir="$HOME/.clone" # Config dir
 
-cp "clone.sh" "/clone"
-mkdir -p "$clone_dir" 2>/dev/null # Creates config dir 
-mkdir -p "${clone_dir}/jobs" # Creates jobs dir
+cp "clone.sh" "${install_dir}/clone"
+mkdir -p "${clone_dir}/jobs" # Creates config and jobs dir
 
 # <!-- Warning: overwrites!
 #cp "config.sh" "$clone_dir" # Copy default config file 

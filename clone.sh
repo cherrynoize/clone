@@ -10,6 +10,9 @@
 # Path to clone dir
 clone_path="$HOME/.clone"
 
+# Jobs dir
+jobs_path="${clone_path}/jobs"
+
 # Path to config file
 config_file="./config_test.sh"
 
@@ -237,7 +240,7 @@ do_sync () {
   else
     log_dir="$(dirname -- "${log_file}")"
 
-    if [ ! -e "$log_dir")" ]; then
+    if [ ! -e "$log_dir" ]; then
       # Create path
       if [[ "$verbose" -gt "1" ]]; then
         printf "creating log dir: %1\n\n" "${log_dir}"
