@@ -14,8 +14,8 @@ clone_path="$HOME/.clone"
 config_file="./config_test.sh"
 
 # Location for log files
-log_file="${clone_path}/clone.log"
-err_file="${clone_path}/clone_err.log"
+log_file="${clone_path}/logs/clone.log"
+err_file="${clone_path}/logs/clone_err.log"
 
 # Extension for job files
 JOB_FILE_EXT=".sh"
@@ -234,6 +234,16 @@ do_sync () {
       printf "creating log backup: %1%2\n\n" "${log_file}" "${BAK_EXT}"
     fi
     cp "${log_file}" "${log_file}${BAK_EXT}"
+  else
+    log_dir="$(dirname -- "${log_file}")"
+
+    if [ ! -e "$log_dir")" ]; then
+      # Create path
+      if [[ "$verbose" -gt "1" ]]; then
+        printf "creating log dir: %1\n\n" "${log_dir}"
+      fi
+      mkdir -p "${log_dir}" 2>&1 > /dev/null
+    fi
   fi
   
   # Do the actual copying
@@ -705,6 +715,7 @@ fi
 # TODO
 # - remove comma separator in sources param
 # - add support for incremental backups
+#  - fix min changes option
 # - add support for remote backups
 # - add md5sum option for checks (separate: + or - diff checks)
 # - fix loop error with jobs_path="." 
