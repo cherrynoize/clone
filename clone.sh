@@ -24,7 +24,7 @@ JOB_FILE_EXT=".sh"
 BAK_EXT=".bak"
 
 # Min number of changes for incremental backup
-min_changes=1
+min_changes=0
 
 # Date format for writing incremental backups
 # Date precision also defines min interval between incremental 
@@ -244,7 +244,6 @@ do_sync () {
     # Quiet mode
     # Passes stdout only to pipe
     rsync -aP $options "$1" "$2" 2> >(tee "${err_file}" >&2) > /dev/null 
-#   rsync -aP $options "$1" "$2" 2>&1 > /dev/null | tee "${err_file}"
   fi
 
   # Save incremental backups
