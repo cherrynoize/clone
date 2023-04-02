@@ -29,8 +29,8 @@ min_changes=0
 # Date format for writing incremental backups
 # Date precision also defines min interval between incremental 
 # backups (i.e: the least significant unit)
-date_fmt="+%Y-%m-%d_%H-%M-%S" # Try to update backup every second
-#date_fmt="+%Y-%m-%d" # Daily backup
+#date_fmt="+%Y-%m-%d_%H-%M-%S" # Try to update backup every second
+date_fmt="+%Y-%m-%d" # Daily backup
 
 # Version number
 VERSION="0.00.4"
