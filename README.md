@@ -5,11 +5,11 @@ and automation.
 
 #### Fast, simple, just *rsync* -- except less scary.
 
-## rsync *2*?
+## Why rsync again?
 
-You may feel like you have no need for this application,
+Maybe you think you have no need for this application,
 especially if you already mastered a certain degree of confidence
-using rsync daily. And that is by all means correct, if you're
+using rsync. And that is by all means correct. If you're
 comfortable running rsync commands and using it to automate tasks
 you can close this tab now. If you, on the other hand, wanted a
 simpler and more effective way of configuring backup tasks and

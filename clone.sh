@@ -26,6 +26,12 @@ JOB_FILE_EXT=".sh"
 # Extension for log backup files
 BAK_EXT=".bak"
 
+# Default number of digits for varying index
+DEFAULT_INDEX_LEN="2"
+
+# Default starting index
+start_index=0
+
 # Min number of changes for incremental backup
 min_changes=0
 
@@ -36,7 +42,7 @@ min_changes=0
 date_fmt="+%Y-%m-%d" # Daily backup
 
 # Version number
-VERSION="0.00.4"
+VERSION="0.00.5"
 
 # Colorschemes
 RED='\033[1;31m'
@@ -71,7 +77,7 @@ arrow="->"
 # Initialization
 shopt -s extglob # Remove trailing slashes
 shopt -s lastpipe # Last pipe runs in current shell
-printf "${color_normal}" # Set initial color
+printf "$color_normal" # Set initial color
 
 # Here we define a lot of useful functions
 # :(funcs)
@@ -98,6 +104,11 @@ Version $VERSION
 
 # Print help message and quit
 print_help () {
+  echo "Usage: clone [options] [-s SOURCE -d DEST | [-d DEST] JOBS]"
+
+  echo "Mandatory arguments to long options are mandatory for short options too."
+  # Print all options here
+
   # Notes:
   # - sources after "-s" are a string of comma or
   #   whitespace separated source paths
@@ -134,7 +145,7 @@ sync_err () {
 
 # Finds differences unique to src
 did_sync () {
-  diff_res=$(diff --no-dereference -r -q $_src $_dest | grep -v "^Only in $_dest")
+  diff_res=$(diff --no-dereference -r -q "$_src" "$_dest" | grep -v "^Only in ${_dest}")
   if [ -n "$diff_res" ]; then
     return 1
   fi
@@ -245,7 +256,7 @@ do_sync () {
       if [[ "$verbose" -gt "1" ]]; then
         printf "creating log dir: %1\n\n" "${log_dir}"
       fi
-      mkdir -p "${log_dir}" 2>&1 > /dev/null
+      mkdir -p "${log_dir}" > /dev/null 2>&1
     fi
   fi
   
@@ -289,12 +300,11 @@ do_sync () {
   # If checks option is set
   if [ -n "$checks" ]; then
     # Run checks
-    do_check "$1" "$2"
-    [[ $? -ne 0 ]] && {
+    do_check "$1" "$2" || {
       put_err "traceback: failed while running check on $1->$2\nwill exit now.\n";
       exit 5;
     }
-    [[ -n verbose ]] && printf "\nall tests passed\n"
+    [[ -n "$verbose" ]] && printf "\nall tests passed\n"
   fi
 }
 
@@ -306,7 +316,7 @@ exec_job () {
     if [ -n "$verbose" ] || [ -n "$interactive" ] || [ -z "$noprompt" ]; then
       if [ -n "$sources" ]; then # Use set parameters
         # List param defined sources
-        for src in ${sources[@]}; do
+        for src in "${sources[@]}"; do
           printf "${color_task}${list_prefix} FOUND source: %s${color_normal}\n" "$src"
         done
         printf "${color_subtitle}${list_prefix} destination: %s${color_normal}\n" "$destination"
@@ -342,12 +352,37 @@ exec_job () {
 
   # Sync
   if [ -n "$sources" ]; then # Run sync from sources to dest
-    for src in ${sources[@]}; do # For each source entry found
+    for src in "${sources[@]}"; do # For each source entry found
       do_sync "$src" "$destination"
     done
   else # Run sync with maps
+    # Set fallback number of digits for index
+    if [ -z "$index_len" ]; then
+      index_len="${DEFAULT_INDEX_LEN}"
+    fi
+
     for src in "${!sync_map[@]}"; do # For each map key found
-      do_sync "$src" "${sync_map[$src]}"
+      let _index+="$start_index"
+
+      while true; do
+        # Pad with zeroes
+        _index_str="$(printf "%0${index_len}d" $_index)"
+
+        # Dest with index 
+        dst="${sync_map[$src]//\$/${_index_str}}" # Replace dollar sign with index
+
+        # Check if dest exists
+        if [ ! -e "$dst" ]; then
+          break
+        elif [[ "$verbose" -gt "1" ]]; then
+          echo "${dst} already exists"
+        fi
+
+        # Try next index
+        (( _index++ ))
+      done
+
+      do_sync "$src" "$dst"
     done
   fi
 
@@ -356,7 +391,7 @@ exec_job () {
     echo
     if [ -n "$sources" ]; then
       # List param defined sources
-      for src in ${sources[@]}; do
+      for src in "${sources[@]}"; do
         printf "${color_task}${list_prefix} synced from: %s${color_normal}\n" "$src"
       done
       printf "${color_subtitle}${list_prefix} successfully synced to: %s${color_normal}\n" "$destination"
@@ -382,7 +417,7 @@ if [[ $? -ne 4 ]]; then
 else
   # Colon after option means additional arg
   _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,no-prompt,interactive,progress,verbose,logorrheic,no-logs,bak:,background,version,help"
-  _options="s:d:f:laIiDucLCnSyIpvNVh"
+  _options="s:d:f:laIiDucLCnSyPpvNVh"
 
   # Parse command line arguments using getopt
   PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- "$@")
@@ -486,7 +521,7 @@ while [[ $# -gt 0 ]]; do
       noprompt=1
       shift
       ;;
-    -I|--interactive)
+    -P|--interactive)
       # Prompt user for actions
       # (overrides -y|--no-prompt)
       interactive=1
@@ -541,7 +576,7 @@ while [[ $# -gt 0 ]]; do
       shift
       break
       ;;
-    -*|--*)
+    -*)
       echo "${0}: invalid option -- '${1}'"
       exit 1
       ;;
@@ -585,7 +620,7 @@ if [ -n "$verbose" ]; then
 fi
 
 # Print launch message
-printf "${SEP}${color_title}starting ${0}...${color_normal}\n${SEP}"
+printf "${SEP}${color_title}starting $(basename -- ${0})...${color_normal}\n${SEP}"
 
 # Print a message if in dry run
 if [ -n "$dry_run" ]; then
@@ -627,7 +662,7 @@ elif [ -n "$all_jobs" ] || [ -n "$list_jobs" ] || [ -n "$safe_mode" ]; then
   fi
 
   # Store paths to job files into array
-  find ${jobs_path} -type f -name "*${JOB_FILE_EXT}" -print0 | while IFS= read -r -d '' _job_file; do
+  find "${jobs_path}" -type f -name "*${JOB_FILE_EXT}" -print0 | while IFS= read -r -d '' _job_file; do
       jobs_array[$i]="$_job_file"
       let i++
   done
@@ -638,7 +673,7 @@ elif [ -n "$all_jobs" ] || [ -n "$list_jobs" ] || [ -n "$safe_mode" ]; then
     exit 3
   fi
 
-  for job_file in ${jobs_array[@]}; do
+  for job_file in "${jobs_array[@]}"; do
     # Make sure file exists
     if [ ! -e "$job_file" ]; then
       put_err "${job_file}: file not found\n"
@@ -658,7 +693,7 @@ elif [ -n "$all_jobs" ] || [ -n "$list_jobs" ] || [ -n "$safe_mode" ]; then
     fi
 
     _filename="$(basename -- "$job_file")"
-    job_name="${filename%.*}"
+    job_name="${_filename%.*}"
 
     # Print job found
     printf "${color_title}${list_prefix} FOUND job: %s (%s)${color_normal}\n" "$job_name" "$job_file"
@@ -720,6 +755,8 @@ fi
 # - add support for incremental backups
 #  - fix min changes option
 # - add support for remote backups
+# - add param destination override for jobs
 # - add md5sum option for checks (separate: + or - diff checks)
 # - fix loop error with jobs_path="." 
 # - add optional notification at the end of each exec_job 
+# - uninstall.sh script
