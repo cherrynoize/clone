@@ -116,6 +116,189 @@ print_help () {
   exit 0
 }
 
+parse_args () {
+  if [ -z "$use_getopt" ]; then
+    put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
+  else
+    # Colon after option means additional arg
+    _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,pass:,no-prompt,interactive,progress,verbose,logorrheic,no-logs,bak:,background,version,help"
+    _options="s:d:f:laIiDucLCnSX:yPpvNVh"
+
+    # Parse command line arguments using getopt
+    _GETOPT_PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- "$@")
+    if [[ $? -ne 0 ]]; then
+      exit 1
+    else
+      # Set getopt output
+      eval set -- "$_GETOPT_PARSED"
+    fi
+  fi
+
+  # Parse command arguments
+  while [[ $# -gt 0 ]]; do
+    # Shift makes you parse next argument as $1.
+    # Shift n makes you move n arguments ahead.
+    case $1 in
+      -s|--src)
+        # Remove any amount of trailing slashes
+        _trimmed_s="${2%%+(/)}"
+        # Source files to copy to destination
+        IFS=', ' read -r -a sources <<< "$_trimmed_s"
+        shift 2
+        ;;
+      -d|--dest)
+        # Remove any amount of trailing slashes
+        _trimmed_d="${2%%+(/)}"
+        # Destination path
+        IFS=', ' read -r -a destination <<< "$_trimmed_d"
+        shift 2
+        ;;
+      -f|--config)
+        # Replace default config file 
+        IFS=', ' read -r -a config_file <<< "$2"
+        shift 2
+        ;;
+      -l|--list)
+        # List jobs
+        list_jobs=1
+        shift
+        ;;
+      -a|--all)
+        # Run all jobs
+        all_jobs=1
+        shift
+        ;;
+      -I|--incremental)
+        # Create incremental backups in dest
+        incremental=1
+        options+=' --delete -i'
+        shift
+        ;;
+      -i|--ignore-existing)
+        # Ignore files that already exist in the destination
+        options+=' --ignore-existing'
+        shift
+        ;;
+      -D|--delete)
+        # Delete files that were deleted in source
+        options+=' --delete'
+        shift
+        ;;
+      -u|--update)
+        # Skip files that are newer on the receiver
+        options+=' -u'
+        shift
+        ;;
+      -c|--checks)
+        # Run additional checks
+        checks=1
+        shift
+        ;;
+      -L|--lightweight)
+        # Perform lighter checks
+        lightweight=1
+        checks=1
+        shift
+        ;;
+      -C|--check-run)
+        # Dry run with checks
+        check_run=1
+        checks=1
+        dry_run=1
+        options+=' -n'
+        shift
+        ;;
+      -n|--dry-run)
+        # Perform a trial run with no changes applied
+        dry_run=1
+        options+=' -n'
+        shift
+        ;;
+      -S|--safe)
+        # Don't perform risky operations like sourcing or copying 
+        safe_mode=1
+        options+=' -n'
+        shift
+        ;;
+      -X|--pass)
+        # Pass next argument as string of params in cmd 
+        pass_args="$1"
+        shift 2
+        ;;
+      -y|--no-prompt)
+        # Do not prompt for verification 
+        # (overridden by -I|--interactive)
+        noprompt=1
+        shift
+        ;;
+      -P|--interactive)
+        # Prompt user for actions
+        # (overrides -y|--no-prompt)
+        interactive=1
+        shift
+        ;;
+      -p|--progress)
+        # Show total progress
+        options+=' --info=progress2'
+        shift
+        ;;
+      -v|--verbose)
+        # Print more stuff
+        if [ -n "$verbose" ]; then
+          options+=' -i'
+        fi
+        let verbose++
+        options+=' -v'
+        shift
+        ;;
+      --logorrheic)
+        # Print even more stuff
+        let verbose+=2
+        options+=' -vv -i'
+        shift
+        ;;
+      -N|--no-logs)
+        # Flush logs
+        log_file="/dev/null"
+        shift
+        ;;
+      --bak)
+        # Log file bak behaviour
+        IFS=', ' read -r -a bak_file <<< "$2"
+        shift 2
+        ;;
+      --background)
+        # Don't burn resources
+        run_in_background=1
+        shift
+        ;;
+      -V|--version)
+        # Print version number and exit
+        ver
+        ;;
+      -h|--help)
+        # Print help and exit
+        print_help
+        ;;
+      --)
+        shift
+        break
+        ;;
+      -*)
+        echo "${0}: invalid option -- '${1}'"
+        exit 1
+        ;;
+      *)
+        positional_args+=("$1") # Save positional args
+        shift
+        ;;
+    esac
+  done
+
+  # Put remaining arguments into an array
+  parsed=( "${@}" )
+}
+
 # Print warning msg
 put_warn () {
   printf "${color_warn}%b${color_normal}\n" "$1"
@@ -240,7 +423,7 @@ do_sync () {
   fi
 
   # Start syncing
-  printf "$SEP${color_title}syncing (%s${arrow}%s)${color_normal}\n$SEP" "$1" "$2"
+  printf "$SEP${color_title}syncing (%s${arrow}%s)${color_normal}\n$SEP\n" "$1" "$2"
 
   if [ -f "${log_file}" ] && [[ "$bak_file" -lt 2 ]]; then
     # Backup logs
@@ -263,11 +446,11 @@ do_sync () {
   # Do the actual copying
   if [ -n "$verbose" ]; then # Also write to stdout
     # Copy each source to destination
-    rsync -aP $options "$1" "$2" > >(tee "${log_file}") 2> >(tee "${err_file}" >&2)
+    rsync -aP $options $rsync_opts $pass_args "$1" "$2" > >(tee "${log_file}") 2> >(tee "${err_file}" >&2)
   else # Write to logs only
     # Quiet mode
     # Passes stdout only to pipe
-    rsync -aP $options "$1" "$2" 2> >(tee "${err_file}" >&2) > /dev/null 
+    rsync -aP $options $rsync_opts $pass_args "$1" "$2" 2> >(tee "${err_file}" >&2) > /dev/null 
   fi
 
   # Save incremental backups
@@ -310,6 +493,11 @@ do_sync () {
 
 # Run a whole sync job 
 exec_job () {
+  # Append job file options to args
+  parse_args "$opts"
+  # Add any free argument to list
+  free_args+=( "${parsed[@]}" )
+
   # Confirm prompt
   while true; do # Loop on unrecognized input
     # List entries found
@@ -371,6 +559,12 @@ exec_job () {
         # Dest with index 
         dst="${sync_map[$src]//\$/${_index_str}}" # Replace dollar sign with index
 
+        # Dest unchanged means no dollar sign found
+        if [ "$dst" == "${sync_map[$src]}" ]; then
+          # Skip index bumping
+          break
+        fi
+
         # Check if dest exists
         if [ ! -e "$dst" ]; then
           break
@@ -410,182 +604,13 @@ exec_job () {
 
 # Getopt version
 getopt --test > /dev/null 
+# If getopt exits with 4 parse with getopt
+[[ $? -eq 4 ]] && use_getopt=1
 
-# If returns 4 parse with getopt
-if [[ $? -ne 4 ]]; then
-  put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
-else
-  # Colon after option means additional arg
-  _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,no-prompt,interactive,progress,verbose,logorrheic,no-logs,bak:,background,version,help"
-  _options="s:d:f:laIiDucLCnSyPpvNVh"
-
-  # Parse command line arguments using getopt
-  PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- "$@")
-  if [[ $? -ne 0 ]]; then
-    exit 1
-  else
-    # Set getopt output
-    eval set -- "$PARSED"
-  fi
-fi
-
-# Parse command arguments
-while [[ $# -gt 0 ]]; do
-  # Shift makes you parse next argument as $1.
-  # Shift n makes you move n arguments ahead.
-  case $1 in
-    -s|--src)
-      # Remove any amount of trailing slashes
-      _trimmed_s="${2%%+(/)}"
-      # Source files to copy to destination
-      IFS=', ' read -r -a sources <<< "$_trimmed_s"
-      shift 2
-      ;;
-    -d|--dest)
-      # Remove any amount of trailing slashes
-      _trimmed_d="${2%%+(/)}"
-      # Destination path
-      IFS=', ' read -r -a destination <<< "$_trimmed_d"
-      shift 2
-      ;;
-    -f|--config)
-      # Replace default config file 
-      IFS=', ' read -r -a config_file <<< "$2"
-      shift 2
-      ;;
-    -l|--list)
-      # List jobs
-      list_jobs=1
-      shift
-      ;;
-    -a|--all)
-      # Run all jobs
-      all_jobs=1
-      shift
-      ;;
-    -I|--incremental)
-      # Create incremental backups in dest
-      incremental=1
-      options+=' --delete -i'
-      shift
-      ;;
-    -i|--ignore-existing)
-      # Ignore files that already exist in the destination
-      options+=' --ignore-existing'
-      shift
-      ;;
-    -D|--delete)
-      # Delete files that were deleted in source
-      options+=' --delete'
-      shift
-      ;;
-    -u|--update)
-      # Skip files that are newer on the receiver
-      options+=' -u'
-      shift
-      ;;
-    -c|--checks)
-      # Run additional checks
-      checks=1
-      shift
-      ;;
-    -L|--lightweight)
-      # Perform lighter checks
-      lightweight=1
-      checks=1
-      shift
-      ;;
-    -C|--check-run)
-      # Dry run with checks
-      check_run=1
-      checks=1
-      dry_run=1
-      options+=' -n'
-      shift
-      ;;
-    -n|--dry-run)
-      # Perform a trial run with no changes applied
-      dry_run=1
-      options+=' -n'
-      shift
-      ;;
-    -S|--safe)
-      # Don't perform risky operations like sourcing or copying 
-      safe_mode=1
-      options+=' -n'
-      shift
-      ;;
-    -y|--no-prompt)
-      # Do not prompt for verification 
-      # (overridden by -I|--interactive)
-      noprompt=1
-      shift
-      ;;
-    -P|--interactive)
-      # Prompt user for actions
-      # (overrides -y|--no-prompt)
-      interactive=1
-      shift
-      ;;
-    -p|--progress)
-      # Show total progress
-      options+=' --info=progress2'
-      shift
-      ;;
-    -v|--verbose)
-      # Print more stuff
-      if [ -n "$verbose" ]; then
-        options+=' -i'
-      fi
-      let verbose++
-      options+=' -v'
-      shift
-      ;;
-    --logorrheic)
-      # Print even more stuff
-      let verbose+=2
-      options+=' -vv -i'
-      shift
-      ;;
-    -N|--no-logs)
-      # Flush logs
-      log_file="/dev/null"
-      shift
-      ;;
-    --bak)
-      # Log file bak behaviour
-      IFS=', ' read -r -a bak_file <<< "$2"
-      shift 2
-      ;;
-    --background)
-      # Don't burn resources
-      run_in_background=1
-      shift
-      ;;
-    -V|--version)
-      # Print version number
-      ver
-      shift
-      ;;
-    -h|--help)
-      # Print help
-      print_help
-      shift
-      ;;
-    --)
-      shift
-      break
-      ;;
-    -*)
-      echo "${0}: invalid option -- '${1}'"
-      exit 1
-      ;;
-    *)
-      positional_args+=("$1") # Save positional args
-      shift
-      ;;
-  esac
-done
+# Parse command line arguments
+parse_args "$@"
+# Set free args
+free_args=( "${parsed[@]}" )
 
 # If getopt wasn't used
 if [ -z "$_options" ]; then
@@ -610,9 +635,14 @@ if [ -e "$config_file" ]; then
   printf "config file found: %s\n" "$config_file"
   if [ -z "$safe_mode" ]; then
     . "$config_file" # Source file
+
+     # Append user config options to args
+     parse_args "$opts"
+     # Add any free argument to list
+     free_args+=( "${parsed[@]}" )
   fi
 else
-  printf "config not found\n"
+  printf "config file not found\n"
 fi
 
 if [ -n "$verbose" ]; then
@@ -720,7 +750,7 @@ else
   fi
 
   # Iterate each free argument as job name 
-  for job_name; do
+  for job_name in "${free_args[@]}"; do
     job_file="${jobs_path}/${job_name}${JOB_FILE_EXT}"
 
     # Source job
@@ -760,3 +790,8 @@ fi
 # - fix loop error with jobs_path="." 
 # - add optional notification at the end of each exec_job 
 # - uninstall.sh script
+# - add post-exec variable in config and jobs
+#  - append each one to a cmd variable after sourcing
+#  - eval at the end
+#  - (note: pre-exec cmds are just plain bash in the sourced files)
+# - write backup jobs that also push to git repos and backup to ssh
