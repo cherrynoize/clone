@@ -1,20 +1,45 @@
 #!/usr/bin/env bash
+#
 #   ____ _                        _
 #  / ___| | ___  _ __   ___   ___| |__
 # | |   | |/ _ \| '_ \ / _ \ / __| '_ \  ~ Clone simple backup utility
 # | |___| | (_) | | | |  __/_\__ \ | | | ~ https://github.com/cherrynoize
 #  \____|_|\___/|_| |_|\___(_)___/_| |_| ~ cherry-noize
 #
-# Configure tasks and jobs for backing up and syncing
+#
+# Configure automated jobs for backing up and syncing files
+#
+
+# Fetch install dir
+install_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
 
 # Path to clone dir
-clone_path="$HOME/.clone"
+clone_path="${HOME}/.clone"
+
+# Override with env default
+if [ -n "$CLONE_PATH" ]; then
+  clone_path="$CLONE_PATH"
+fi
 
 # Jobs dir
 jobs_path="${clone_path}/jobs"
 
+#
+# Set the path to your config file
+#
+
 # Path to config file
-config_file="./config_test.sh"
+config_file="${clone_path}/config.sh"
+
+#
+# You should override all following values from your config file
+#
+
+# Path to tar module
+tar_module="${install_dir}/tar.sh"
+
+# Path to default tar exclude file
+tar_exclude="${clone_path}/tar_exclude.conf"
 
 # Location for log files
 log_file="${clone_path}/logs/clone.log"
@@ -121,8 +146,8 @@ parse_args () {
     put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
   else
     # Colon after option means additional arg
-    _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,pass:,no-prompt,interactive,progress,verbose,logorrheic,no-logs,bak:,background,version,help"
-    _options="s:d:f:laIiDucLCnSX:yPpvNVh"
+    _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,pass:,use-tar,no-prompt,interactive,progress,verbose,logorrheic,no-logs,bak:,background,version,help"
+    _options="s:d:f:laIiDucLCnSX:tyPpvNVh"
 
     # Parse command line arguments using getopt
     _GETOPT_PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- "$@")
@@ -222,8 +247,13 @@ parse_args () {
         ;;
       -X|--pass)
         # Pass next argument as string of params in cmd 
-        pass_args="$1"
+        IFS=', ' read -r -a pass_args <<< "$2"
         shift 2
+        ;;
+      -t|--tar)
+        # Use tar
+        use_tar=1
+        shift
         ;;
       -y|--no-prompt)
         # Do not prompt for verification 
@@ -324,6 +354,16 @@ sync_err () {
 
   # Return put_err status
   return $_status
+}
+
+# y/N prompt
+continue_prompt () {
+  case $input in
+    [Yy]* ) echo; break;;
+    [Nn]* ) exit;;
+    "" ) exit;;
+    * ) printf "\ninvalid option: \'%s\'\n\n" "$input";;
+  esac
 }
 
 # Finds differences unique to src
@@ -444,50 +484,55 @@ do_sync () {
   fi
   
   # Do the actual copying
-  if [ -n "$verbose" ]; then # Also write to stdout
-    # Copy each source to destination
-    rsync -aP $options $rsync_opts $pass_args "$1" "$2" > >(tee "${log_file}") 2> >(tee "${err_file}" >&2)
-  else # Write to logs only
-    # Quiet mode
-    # Passes stdout only to pipe
-    rsync -aP $options $rsync_opts $pass_args "$1" "$2" 2> >(tee "${err_file}" >&2) > /dev/null 
-  fi
-
-  # Save incremental backups
-  if [ -n "$incremental" ]; then
-    # Count changes
-    changes=$(wc -l "${log_file}" | cut -d" " -f1)
-
-    if [ -n "$verbose" ]; then
-      put_warn "warning: using \`verbose\` flag with \`incremental\` mode\nnumber of min changes might not be respected"
+  if [ -z "$use_tar" ]; then # use rsync
+    if [ -n "$verbose" ]; then # Also write to stdout
+      # Copy each source to destination
+      rsync -aP $options $rsync_opts $pass_args "$1" "$2" > >(tee "${log_file}") 2> >(tee "${err_file}" >&2)
+    else # Write to logs only
+      # Quiet mode
+      # Passes stdout only to pipe
+      rsync -aP $options $rsync_opts $pass_args "$1" "$2" 2> >(tee "${err_file}" >&2) > /dev/null 
     fi
 
-    # If enough lines found in log 
-    if [[ "$changes" -ge "$min_changes" ]]; then
-      # Fetch date
-      _date=$(date ${date_fmt})
+    # Save incremental backups
+    if [ -n "$incremental" ]; then
+      # Count changes
+      changes=$(wc -l "${log_file}" | cut -d" " -f1)
 
-      # If current date snapshot does not exist
-      if [ ! -e "${2}_${_date}" ]; then
-        # Make hardlinked copy for current date
-        cp -al "$2" "${2}_${_date}"
-        # Rename log files
-        cp "${log_file}" "${log_file}_${_date}"
-        if [ -f "${log_file}${BAK_EXT}" ] && [ -z "$bak_file" ]; then
-          cp "${log_file}${BAK_EXT}" "${log_file}${BAK_EXT}_${_date}"
+      if [ -n "$verbose" ]; then
+        put_warn "warning: using \`verbose\` flag with \`incremental\` mode\nnumber of min changes might not be respected"
+      fi
+
+      # If enough lines found in log 
+      if [[ "$changes" -ge "$min_changes" ]]; then
+        # Fetch date
+        _date=$(date ${date_fmt})
+
+        # If current date snapshot does not exist
+        if [ ! -e "${2}_${_date}" ]; then
+          # Make hardlinked copy for current date
+          cp -al "$2" "${2}_${_date}"
+          # Rename log files
+          cp "${log_file}" "${log_file}_${_date}"
+          if [ -f "${log_file}${BAK_EXT}" ] && [ -z "$bak_file" ]; then
+            cp "${log_file}${BAK_EXT}" "${log_file}${BAK_EXT}_${_date}"
+          fi
         fi
       fi
     fi
-  fi
 
-  # If checks option is set
-  if [ -n "$checks" ]; then
-    # Run checks
-    do_check "$1" "$2" || {
-      put_err "traceback: failed while running check on $1->$2\nwill exit now.\n";
-      exit 5;
-    }
-    [[ -n "$verbose" ]] && printf "\nall tests passed\n"
+    # If checks option is set
+    if [ -n "$checks" ]; then
+      # Run checks
+      do_check "$1" "$2" || {
+        put_err "traceback: failed while running check on $1->$2\nwill exit now.\n";
+        exit 5;
+      }
+      [[ -n "$verbose" ]] && printf "\nall tests passed\n"
+    fi
+  else # use tar
+    . "$tar_module"
+    do_tar_sync $options $tar_opts $pass_args "$1" "$2"
   fi
 }
 
@@ -514,7 +559,6 @@ exec_job () {
           printf "${color_task}${list_prefix} FOUND mapping: %s${arrow}%s${color_normal}\n" "$src" "${sync_map[$src]}"
         done
       fi
-      # Print newline
       echo
     fi
 
@@ -522,12 +566,7 @@ exec_job () {
     if [ -n "$interactive" ] || [ -z "$noprompt" ]; then
       read -n 1 -p "Are you sure you want to proceed? (y/N) " input
       echo
-      case $input in
-        [Yy]* ) echo; break;;
-        [Nn]* ) exit;;
-        "" ) exit;;
-        * ) printf "\ninvalid option: \'%s\'\n\n" "$input";;
-      esac
+      continue_prompt # y/N prompt
     else
       break;
     fi
