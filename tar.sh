@@ -6,7 +6,8 @@ do_tar_sync () {
     while true; do # Loop on unrecognized input
       echo "Exclude file not found"
       read -n 1 -p "Are you sure you want to proceed? (y/N) " input
-      continue_prompt # y/N prompt
+      # y/N prompt
+      continue_prompt && break
     done
   fi
 

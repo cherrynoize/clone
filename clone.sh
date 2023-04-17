@@ -359,11 +359,12 @@ sync_err () {
 # y/N prompt
 continue_prompt () {
   case $input in
-    [Yy]* ) echo; break;;
+    [Yy]* ) echo; return;;
     [Nn]* ) exit;;
     "" ) exit;;
     * ) printf "\ninvalid option: \'%s\'\n\n" "$input";;
   esac
+  return 1
 }
 
 # Finds differences unique to src
@@ -426,6 +427,32 @@ do_check () {
     return $?
   fi
   return $?
+}
+
+# Source file and parse options
+parse_file () { 
+  echo "sourcing $1 file $2"
+  # Source file
+  . "$2" 2>/dev/null || {
+    put_err "${2}: ${1} file not found\n"
+    return 1
+  }
+
+   # Append file options to args
+   parse_args "${opts[@]}"
+   # Add any free arguments to list
+   free_args+=( "${parsed[@]}" )
+
+
+
+
+
+
+  echo map_len: "${#sync_map[@]}"
+
+
+
+
 }
 
 # Sync $1->$2
@@ -538,11 +565,6 @@ do_sync () {
 
 # Run a whole sync job 
 exec_job () {
-  # Append job file options to args
-  parse_args "$opts"
-  # Add any free argument to list
-  free_args+=( "${parsed[@]}" )
-
   # Confirm prompt
   while true; do # Loop on unrecognized input
     # List entries found
@@ -566,7 +588,8 @@ exec_job () {
     if [ -n "$interactive" ] || [ -z "$noprompt" ]; then
       read -n 1 -p "Are you sure you want to proceed? (y/N) " input
       echo
-      continue_prompt # y/N prompt
+      # y/N prompt
+      continue_prompt && break
     else
       break;
     fi
@@ -589,33 +612,33 @@ exec_job () {
     fi
 
     for src in "${!sync_map[@]}"; do # For each map key found
-      let _index+="$start_index"
+      (( _index+="$start_index" ))
 
       while true; do
         # Pad with zeroes
         _index_str="$(printf "%0${index_len}d" $_index)"
 
-        # Dest with index 
-        dst="${sync_map[$src]//\$/${_index_str}}" # Replace dollar sign with index
+        # Fetch dest using index 
+        dst_res="${sync_map[$src]//\$/${_index_str}}" # Replace dollar sign with index
 
         # Dest unchanged means no dollar sign found
-        if [ "$dst" == "${sync_map[$src]}" ]; then
+        if [ "$dst_res" == "${sync_map[$src]}" ]; then
           # Skip index bumping
           break
         fi
 
         # Check if dest exists
-        if [ ! -e "$dst" ]; then
+        if [ ! -e "$dst_res" ]; then
           break
         elif [[ "$verbose" -gt "1" ]]; then
-          echo "${dst} already exists"
+          echo "${dst_res} already exists"
         fi
 
         # Try next index
         (( _index++ ))
       done
 
-      do_sync "$src" "$dst"
+      do_sync "$src" "$dst_res"
     done
   fi
 
@@ -641,196 +664,166 @@ exec_job () {
 # Here we start handling command line arguments
 # :(args)
 
-# Getopt version
-getopt --test > /dev/null 
-# If getopt exits with 4 parse with getopt
-[[ $? -eq 4 ]] && use_getopt=1
+main () {
+  # Getopt version
+  getopt --test > /dev/null 
+  # If getopt exits with 4 parse with getopt
+  [[ $? -eq 4 ]] && use_getopt=1
 
-# Parse command line arguments
-parse_args "$@"
-# Set free args
-free_args=( "${parsed[@]}" )
+  # Parse command line arguments
+  parse_args "$@"
+  # Set free args
+  free_args=( "${parsed[@]}" )
 
-# If getopt wasn't used
-if [ -z "$_options" ]; then
-  # Restore positional arguments
-  set -- "${positional_args[@]}"
-fi
-
-# Free arguments are now set as $@ 
-# Can be accessed later on
-
-# From here on we start program execution
-# :(startup)
-
-if [ -n "$run_in_background" ]; then
-  # Run this process with real low priority
-  ionice -c 3 -p $$
-  renice +12  -p $$
-fi
-
-# Print config file location
-if [ -e "$config_file" ]; then
-  printf "config file found: %s\n" "$config_file"
-  if [ -z "$safe_mode" ]; then
-    . "$config_file" # Source file
-
-     # Append user config options to args
-     parse_args "$opts"
-     # Add any free argument to list
-     free_args+=( "${parsed[@]}" )
-  fi
-else
-  printf "config file not found\n"
-fi
-
-if [ -n "$verbose" ]; then
-  SEP=$separator
-fi
-
-# Print launch message
-printf "${SEP}${color_title}starting $(basename -- ${0})...${color_normal}\n${SEP}"
-
-# Print a message if in dry run
-if [ -n "$dry_run" ]; then
-  printf "${color_active}(running dry run -- no changes will be applied)${color_normal}\n"
-fi
-
-echo
-
-if [ -n "$sources" ]; then # Source parameter set
-  # Destination parameter not set
-  if [ -z "$destination" ]; then
-    put_err "expecting --dest when setting --src but found nothing\n"
-    exit 3
-  else
-    # Run job using set parameters
-    (exec_job)
-  fi
-elif [ -n "$all_jobs" ] || [ -n "$list_jobs" ] || [ -n "$safe_mode" ]; then
-  if [ -z "$jobs_path" ]; then
-    if [ -n "$safe_mode" ]; then
-      put_err "in --safe mode you need to pass the jobs path variable manually:" 
-      printf "${italic}%s${color_normal}\n" 'jobs_path="/path/to/clone/jobs clone [options] [jobs]"'
-      exit 2
-    else
-      put_err "jobs path not defined"
-      printf "try adding to your config file:\n"
-      printf "${italic}%s${color_normal}\n" 'jobs_path="/path/to/clone/jobs"'
-      exit 2
-    fi
-  elif [ ! -d "$jobs_path" ]; then
-    put_err "${jobs_path} is not a directory"
-    exit 4
+  # If getopt wasn't used
+  if [ -z "$_options" ]; then
+    # Restore positional arguments
+    set -- "${positional_args[@]}"
   fi
 
-  if [ -n "$list_jobs" ]; then
-    printf "listing jobs inside %s\n\n" "$jobs_path"
-  else
-    printf "running all jobs found in: %s\n\n" "$jobs_path"
+  # Free arguments are now set as $@ 
+  # Can be accessed later on
+
+  # From here on we start program execution
+  # :(startup)
+
+  if [ -n "$run_in_background" ]; then
+    # Run this process with real low priority
+    ionice -c 3 -p $$
+    renice +12  -p $$
   fi
 
-  # Store paths to job files into array
-  find "${jobs_path}" -type f -name "*${JOB_FILE_EXT}" -print0 | while IFS= read -r -d '' _job_file; do
-      jobs_array[$i]="$_job_file"
-      let i++
-  done
-
-  # Check if we found anything
-  if [[ "${#jobs_array[@]}" -eq "0" ]]; then
-    put_err "${jobs_path}: no job files found\n"
-    exit 3
-  fi
-
-  for job_file in "${jobs_array[@]}"; do
-    # Make sure file exists
-    if [ ! -e "$job_file" ]; then
-      put_err "${job_file}: file not found\n"
-      continue
-    fi
-
+  # Print config file location
+  if [ -e "$config_file" ]; then
+    printf "config file found: %s\n" "$config_file"
     if [ -z "$safe_mode" ]; then
-      # Source job
-      # We fetch the new sync mappings
-      . "$job_file"
+      # Source config file
+      parse_file config "$config_file"
+    fi
+  else
+    printf "config file not found\n"
+  fi
 
-      if [ "${#sync_map[@]}" -eq "0" ]; then
-        put_err "${job_file}: sync map not found"
-        printf "add a sync map to your job file\n"
+  if [ -n "$verbose" ]; then
+    SEP=$separator
+  fi
+
+  # Print launch message
+  printf "${SEP}${color_title}starting $(basename -- ${0})...${color_normal}\n${SEP}"
+
+  # Print a message if in dry run
+  if [ -n "$dry_run" ]; then
+    printf "${color_active}(running dry run -- no changes will be applied)${color_normal}\n"
+  fi
+
+  echo
+
+  if [ -n "$sources" ]; then # Source parameter set
+    # Destination parameter not set
+    if [ -z "$destination" ]; then
+      put_err "expecting --dest when setting --src but found nothing\n"
+      exit 3
+    else
+      # Run job using set parameters
+      (exec_job)
+    fi
+  elif [ -n "$all_jobs" ] || [ -n "$list_jobs" ] || [ -n "$safe_mode" ]; then
+    if [ -z "$jobs_path" ]; then
+      if [ -n "$safe_mode" ]; then
+        put_err "in --safe mode you need to pass the jobs path variable manually:" 
+        printf "${italic}%s${color_normal}\n" 'jobs_path="/path/to/clone/jobs clone [options] [jobs]"'
+        exit 2
+      else
+        put_err "jobs path not defined"
+        printf "try adding to your config file:\n"
+        printf "${italic}%s${color_normal}\n" 'jobs_path="/path/to/clone/jobs"'
         exit 2
       fi
+    elif [ ! -d "$jobs_path" ]; then
+      put_err "${jobs_path} is not a directory"
+      exit 4
     fi
 
-    _filename="$(basename -- "$job_file")"
-    job_name="${_filename%.*}"
-
-    # Print job found
-    printf "${color_title}${list_prefix} FOUND job: %s (%s)${color_normal}\n" "$job_name" "$job_file"
-
     if [ -n "$list_jobs" ]; then
-      if [ -z "$safe_mode" ]; then
-        echo
-        # Print sync map
-        for src in "${!sync_map[@]}"; do
-          printf "${color_task}${list_prefix} FOUND mapping: %s${arrow}%s${color_normal}\n" "$src" "${sync_map[$src]}"
-        done
-      fi
-      echo
+      printf "listing jobs inside %s\n\n" "$jobs_path"
     else
+      printf "running all jobs found in: %s\n\n" "$jobs_path"
+    fi
+
+    # Store paths to job files into array
+    find "${jobs_path}" -type f -name "*${JOB_FILE_EXT}" -print0 | while IFS= read -r -d '' _job_file; do
+        jobs_array[i]="$_job_file"
+        (( i++ ))
+    done
+
+    # Check if we found anything
+    if [[ "${#jobs_array[@]}" -eq "0" ]]; then
+      put_err "${jobs_path}: no job files found\n"
+      exit 3
+    fi
+
+    for job_file in "${jobs_array[@]}"; do
+      if [ -z "$safe_mode" ]; then
+        # Source job file
+        parse_file job "$job_file"
+
+        # If sync map is empty
+        if [ "${#sync_map[@]}" -eq "0" ]; then
+          put_err "${job_file}: sync map not found"
+          printf "add a sync map to your job file\n"
+          exit 2
+        fi
+      fi
+
+      _filename="$(basename -- "$job_file")"
+      job_name="${_filename%.*}"
+
+      # Print job found
+      printf "${color_title}${list_prefix} FOUND job: %s (%s)${color_normal}\n" "$job_name" "$job_file"
+
+      if [ -n "$list_jobs" ]; then
+        if [ -z "$safe_mode" ]; then
+          echo
+          # Print sync map
+          for src in "${!sync_map[@]}"; do
+            printf "${color_task}${list_prefix} FOUND mapping: %s${arrow}%s${color_normal}\n" "$src" "${sync_map[$src]}"
+          done
+        fi
+        echo
+      else
+        # Run jobs in subshell
+        # This way we can configure local options in the job file 
+        (exec_job)
+      fi
+    done
+  else
+    if [ "$#" -eq "0" ]; then
+      printf "no jobs specified.\n"
+      exit 1
+    fi
+
+    # Iterate each free argument as job name 
+    for job_name in "${free_args[@]}"; do
+      # Skip empty job names
+      if [ -z "$job_name" ]; then
+        continue
+      fi
+
+      # Source job file
+      job_file="${jobs_path}/${job_name}${JOB_FILE_EXT}"
+      parse_file job "$job_file"
+
+      # Print job found
+      printf "${color_title}${list_prefix} FOUND job: %s (%s)${color_normal}\n" "$job_name" "$job_file"
+
       # Run jobs in subshell
       # This way we can configure local options in the job file 
       (exec_job)
-    fi
-  done
-else
-  if [ "$#" -eq "0" ]; then
-    printf "no jobs specified.\n"
-    exit 1
+    done
   fi
-
-  # Iterate each free argument as job name 
-  for job_name in "${free_args[@]}"; do
-    job_file="${jobs_path}/${job_name}${JOB_FILE_EXT}"
-
-    # Source job
-    # We fetch the new sync mappings
-    . "$job_file" 2>/dev/null || {
-      put_err "${job_file}: job file not found\n"
-      continue
-    }
-
-    # Print job found
-    printf "${color_title}${list_prefix} FOUND job: %s (%s)${color_normal}\n" "$job_name" "$job_file"
-
-    # Run jobs in subshell
-    # This way we can configure local options in the job file 
-    (exec_job)
-  done
-fi
+}
 
 # All over
-[ "$?" -eq "0" ] && printf "done.\n"
-
-#####################################
-# EXIT CODES
-# - 0 OK
-# - 1 command external (e.g: command syntax/arg format)
-# - 2 command internal (e.g: bad configuration)
-# - 3 file (e.g: file not found)
-# - 4 path (e.g: dir not found)
-#
-# TODO
-# - remove comma separator in sources param
-# - add support for incremental backups
-#  - fix min changes option
-# - add support for remote backups
-# - add param destination override for jobs
-# - add md5sum option for checks (separate: + or - diff checks)
-# - fix loop error with jobs_path="." 
-# - add optional notification at the end of each exec_job 
-# - uninstall.sh script
-# - add post-exec variable in config and jobs
-#  - append each one to a cmd variable after sourcing
-#  - eval at the end
-#  - (note: pre-exec cmds are just plain bash in the sourced files)
-# - write backup jobs that also push to git repos and backup to ssh
+if main "$@"; then # If exiting with 0
+  printf "done.\n"
+fi

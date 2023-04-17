@@ -1,0 +1,15 @@
+# TODO
+- remove comma separator in sources param
+- add support for incremental backups
+ - fix min changes option
+- add support for remote backups
+- add param destination override for jobs
+- add md5sum option for checks (separate: + or - diff checks)
+- fix loop error with jobs_path="." 
+- add optional notification at the end of each exec_job 
+- uninstall.sh script
+- add post-exec variable in config and jobs
+ - append each one to a cmd variable after sourcing
+ - eval at the end
+ - (note: pre-exec cmds are just plain bash in the sourced files)
+- write backup jobs that also push to git repos and backup to ssh

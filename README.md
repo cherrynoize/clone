@@ -51,6 +51,14 @@ The contents of `src` will also be copied into `/path/to/dest/src`.
 
 The contents of `src` will be copied into `/path/to/dest`.
 
+## Exit codes
+
+- 0 OK
+- 1 command external (e.g: command syntax/arg format)
+- 2 command internal (e.g: bad configuration)
+- 3 file (e.g: file not found)
+- 4 path (e.g: dir not found)
+
 ## Contribute
 
 This application is still in **alpha**. So if you want to
