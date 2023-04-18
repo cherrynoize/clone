@@ -45,20 +45,17 @@ tar_exclude="${clone_path}/tar_exclude.conf"
 log_file="${clone_path}/logs/clone.log"
 err_file="${clone_path}/logs/clone_err.log"
 
-# Extension for job files
+# Job file extension
 JOB_FILE_EXT=".sh"
 
-# Extension for log backup files
-BAK_EXT=".bak"
+# Log file extension
+LOG_FILE_EXT=".log"
 
 # Default number of digits for varying index
 DEFAULT_INDEX_LEN="2"
 
 # Default starting index
 start_index=0
-
-# Min number of changes for incremental backup
-min_changes=0
 
 # Date format for writing incremental backups
 # Date precision also defines min interval between incremental 
@@ -71,7 +68,7 @@ VERSION="0.00.5"
 
 # Colorschemes
 RED='\033[1;31m'
-GREEN='\033[1;32m'
+#GREEN='\033[1;32m'
 ORANGE='\033[1;33m'
 PURPLE='\033[3;35m'
 BLUE='\033[1;36m'
@@ -146,7 +143,7 @@ parse_args () {
     put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
   else
     # Colon after option means additional arg
-    _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,pass:,use-tar,no-prompt,interactive,progress,verbose,logorrheic,no-logs,bak:,background,version,help"
+    _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,pass:,use-tar,no-prompt,interactive,progress,verbose,logorrheic,no-logs,background,version,help"
     _options="s:d:f:laIiDucLCnSX:tyPpvNVh"
 
     # Parse command line arguments using getopt
@@ -292,11 +289,6 @@ parse_args () {
         log_file="/dev/null"
         shift
         ;;
-      --bak)
-        # Log file bak behaviour
-        IFS=', ' read -r -a bak_file <<< "$2"
-        shift 2
-        ;;
       --background)
         # Don't burn resources
         run_in_background=1
@@ -414,11 +406,10 @@ do_check () {
           did_sync || sync_err "$_src${arrow}$_dest"
         else
           # Only print error msg
-          did_sync > /dev/null || sync_err "$_src$arryw$_dest"
+          did_sync > /dev/null || sync_err "$_src$arrow$_dest"
         fi
       else # Src not found
-        put_err "could not access src: $_src"
-        echo "(not a directory or file)"
+        put_err "could not access src: $_src (not a file/directory)\n"
         return $?
       fi
     fi
@@ -442,17 +433,6 @@ parse_file () {
    parse_args "${opts[@]}"
    # Add any free arguments to list
    free_args+=( "${parsed[@]}" )
-
-
-
-
-
-
-  echo map_len: "${#sync_map[@]}"
-
-
-
-
 }
 
 # Sync $1->$2
@@ -463,103 +443,103 @@ do_sync () {
     echo verifying path to destination...
   fi
 
+  _dest="$2"
+
+  # Incremental backups format
+  if [ -n "$incremental" ]; then
+    # Fetch date
+    _date="$(date "${date_fmt}")"
+
+    # Fetch dest dir
+    _dest_dir="${_dest}"
+    if [ ! -d "${_dest}" ]; then
+      _dest_dir="$(dirname -- "${_dest}")"
+    fi
+    # Full path to last modified element in dest dir
+    link_dest="${_dest_dir}/$(ls -t "${_dest_dir}" 2>/dev/null | head -n 1)"
+    # Use last dest as link base
+    if [ -n "$link_dest" ]; then
+      options+=" --link-dest ${link_dest}"
+    fi
+
+    # Update with new log and err file for writing
+    log_base="${active_log_file%.*}"
+    active_log_file="${log_base}_${_date}${LOG_FILE_EXT}"
+    err_base="${active_err_file%.*}"
+    active_err_file="${err_base}_${_date}${LOG_FILE_EXT}"
+
+    # Update with incremental dest name
+    _dest="${_dest}_${_date}"
+  fi
+
   # Check if dir exists (or is file).
   # Create it otherwise
-  if [[ -d $2 ]]; then # Dir exists
+  if [[ -d "${_dest}" ]]; then # Dir exists
     if [ -n "$verbose" ]; then
-      printf "%s: dir already exists\n\n" "$2"
+      printf "%s: dir already exists\n\n" "${_dest}"
       printf "${color_hint}skipping mkdir${color_normal}\n\n"
     fi
-  elif [[ -f $2 ]]; then # Is file
+  elif [[ -f "${_dest}" ]]; then # Is file
     if [ -n "$verbose" ]; then
-      printf "%s: file already exists\n\n" "$2"
+      printf "%s: file already exists\n\n" "${_dest}"
     fi
-  elif [[ -e $2 ]]; then # Exists but unrecognized
-    put_err "$2: unrecognized type (not file or directory)\n"
+  elif [[ -e "${_dest}" ]]; then # Exists but unrecognized
+    put_err "${_dest}: unrecognized type (not file or directory)\n"
   else # Dir not found
     if [ -n "$verbose" ]; then
-      printf "%s: could not find dir\n\n" "$2"
-      printf "${color_hint}running: mkdir -p %s${color_normal}\n\n" "$2"
+      printf "%s: could not find dir\n\n" "${_dest}"
+      printf "${color_hint}running: mkdir -p %s${color_normal}\n\n" "${_dest}"
     fi
 
     # If not in dry run
     if [ -z "$dry_run" ]; then
       # Try to create path to destination
-      mkdir -p "$2" 2>/dev/null || put_err "mkdir: could not create directory"
+      mkdir -p "${_dest}" 2>/dev/null || put_err "mkdir: could not create directory"
     fi
   fi
 
   # Start syncing
-  printf "$SEP${color_title}syncing (%s${arrow}%s)${color_normal}\n$SEP\n" "$1" "$2"
+  printf "$SEP${color_title}syncing (%s${arrow}%s)${color_normal}\n$SEP\n" "$1" "${_dest}"
 
-  if [ -f "${log_file}" ] && [[ "$bak_file" -lt 2 ]]; then
-    # Backup logs
-    if [[ "$verbose" -gt "1" ]]; then
-      printf "creating log backup: %1%2\n\n" "${log_file}" "${BAK_EXT}"
-    fi
-    cp "${log_file}" "${log_file}${BAK_EXT}"
-  else
+  # Create logs dir
+  if [ -f "${log_file}" ]; then
     log_dir="$(dirname -- "${log_file}")"
-
     if [ ! -e "$log_dir" ]; then
-      # Create path
       if [[ "$verbose" -gt "1" ]]; then
         printf "creating log dir: %1\n\n" "${log_dir}"
       fi
       mkdir -p "${log_dir}" > /dev/null 2>&1
     fi
   fi
+
+  # Set active log and err file for writing
+  active_log_file="$log_file"
+  active_err_file="$err_file"
   
   # Do the actual copying
   if [ -z "$use_tar" ]; then # use rsync
     if [ -n "$verbose" ]; then # Also write to stdout
       # Copy each source to destination
-      rsync -aP $options $rsync_opts $pass_args "$1" "$2" > >(tee "${log_file}") 2> >(tee "${err_file}" >&2)
+      rsync -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_log_file}") 2> >(tee "${active_err_file}" >&2)
     else # Write to logs only
       # Quiet mode
       # Passes stdout only to pipe
-      rsync -aP $options $rsync_opts $pass_args "$1" "$2" 2> >(tee "${err_file}" >&2) > /dev/null 
-    fi
-
-    # Save incremental backups
-    if [ -n "$incremental" ]; then
-      # Count changes
-      changes=$(wc -l "${log_file}" | cut -d" " -f1)
-
-      if [ -n "$verbose" ]; then
-        put_warn "warning: using \`verbose\` flag with \`incremental\` mode\nnumber of min changes might not be respected"
-      fi
-
-      # If enough lines found in log 
-      if [[ "$changes" -ge "$min_changes" ]]; then
-        # Fetch date
-        _date=$(date ${date_fmt})
-
-        # If current date snapshot does not exist
-        if [ ! -e "${2}_${_date}" ]; then
-          # Make hardlinked copy for current date
-          cp -al "$2" "${2}_${_date}"
-          # Rename log files
-          cp "${log_file}" "${log_file}_${_date}"
-          if [ -f "${log_file}${BAK_EXT}" ] && [ -z "$bak_file" ]; then
-            cp "${log_file}${BAK_EXT}" "${log_file}${BAK_EXT}_${_date}"
-          fi
-        fi
-      fi
+      rsync -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" >&2) > /dev/null 
     fi
 
     # If checks option is set
     if [ -n "$checks" ]; then
       # Run checks
-      do_check "$1" "$2" || {
-        put_err "traceback: failed while running check on $1->$2\nwill exit now.\n";
+      do_check "$1" "${_dest}" || {
+        put_err "traceback: failed while running check on $1->${_dest}\nwill exit now.\n";
         exit 5;
       }
       [[ -n "$verbose" ]] && printf "\nall tests passed\n"
     fi
   else # use tar
+    # shellcheck source=tar.sh
     . "$tar_module"
-    do_tar_sync $options $tar_opts $pass_args "$1" "$2"
+    do_tar_sync $options $tar_opts $pass_args "$1" "${_dest}"
   fi
 }
 
