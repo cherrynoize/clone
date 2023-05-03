@@ -208,6 +208,13 @@ Options:
   -h|--help 
     Print this help message
 
+Exit codes:
+  0 OK
+  1 command external (e.g: command syntax/arg format)
+  2 command internal (e.g: bad configuration)
+  3 file (e.g: file not found)
+  4 path (e.g: dir not found)
+
 Examples:
   # backup current directory into /mnt as a tar archive
   clone -s . -d /mnt --tar
