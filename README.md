@@ -103,7 +103,7 @@ up though. You should update your job file whenever a new location
 needs to be synchronized, so that it's done automatically on the next
 run.
 
-You can find in the example jobs a [useful sync map of user-relevant
+You can find in the example jobs a useful [sync map of user-relevant
 files](jobs/sync.sh) that can be easily translated to a new system to
 replicate the current setup (obviously needs customization, but it's
 a starting point). You should make sure the backup partition
