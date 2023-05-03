@@ -42,13 +42,13 @@ For an easy quickstart just run:
 
     clone JOB_NAME
 
-Replace JOB\_NAME with your job file.
+Where `JOB_NAME` is the name of your job file.
 
-This is kind of the whole idea behind Clone: configuring jobs with
+This illustrates the whole idea behind Clone. Configuring jobs with
 all the desired options and commands so you can later just call them
-by their name, not worrying about re-defining options each time, which
-can be tedious if it's the same job over and over, but even worse if
-the command is always changing.
+by their name, not worrying about re-defining options each time
+(which can be tedious if it's the same job over and over, but even
+worse if the command is always changing.
 
 To view the full usage message type:
 
@@ -75,31 +75,33 @@ The contents of `src` will be copied into `/path/to/dest`.
 
 ## Configuration
 
-Clone can be configured in the default config file (defined at the
-top of the Clone script) or in any job file to be run.
+Clone can be configured in the default `config.sh` file
+or in any job file to be run.
 
-Configurations specified in currently running jobs is local to the
-active job only and overrides main config file's parameters.
+Configuration specified in currently running jobs is local to the
+active job only and overrides the main config's.
 
 In config files you can specify additional option parameters, as
 well as custom sync maps, commands to be run after job execution,
 etc.
 
 Please refer to the example files provided in the repo for specific
-syntax. You can use these as a starter configuration and expand upon
-them. An in-depth explanation should be overkill if you just edit the
+syntax and use-cases. You can use these as a starter configuration
+and expand upon
+them. An in-depth explanation should be overkill if you just stick
+to editing the given
 values and preserve the basic structure. Key concepts are still
-addressed in comments.
+always addressed in comments.
 
 ## System cloning
 
 If you want to automate system reproduction a good rule of thumb
 is to back up what you know you want to back up, and leave the rest.
 
-Sometimes it's not so easy to keep track of what you edited and so
-on. You should update your job file in time when a new location
-needs to be synchronized, so that it's done automatically the next
-time it is run.
+Sometimes it's not so easy to keep track of what you want to back
+up though. You should update your job file whenever a new location
+needs to be synchronized, so that it's done automatically on the next
+run.
 
 You can find in the example jobs a [useful sync map of user-relevant
 files](jobs/sync.sh) that can be easily translated to a new system to
