@@ -2,7 +2,7 @@
 #
 #   ____ _                        _
 #  / ___| | ___  _ __   ___   ___| |__
-# | |   | |/ _ \| '_ \ / _ \ / __| '_ \  ~ Clone simple backup utility
+# | |   | |/ _ \| '_ \ / _ \ / __| '_ \  ~ Clone backup automation sware
 # | |___| | (_) | | | |  __/_\__ \ | | | ~ https://github.com/cherrynoize
 #  \____|_|\___/|_| |_|\___(_)___/_| |_| ~ cherry-noize
 #
@@ -38,9 +38,6 @@ config_file="${clone_path}/config.sh"
 # Path to tar module
 tar_module="${install_dir}/tar.sh"
 
-# Path to default tar exclude file
-tar_exclude="${clone_path}/tar_exclude.conf"
-
 # Location for log files
 log_file="${clone_path}/logs/clone.log"
 err_file="${clone_path}/logs/clone_err.log"
@@ -64,7 +61,7 @@ start_index=0
 date_fmt="+%Y-%m-%d" # Daily backup
 
 # Version number
-VERSION="0.00.5"
+VERSION="0.00.6"
 
 # Colorschemes
 RED='\033[1;31m'
@@ -126,15 +123,101 @@ Version $VERSION
 
 # Print help message and quit
 print_help () {
-  echo "Usage: clone [options] [-s SOURCE -d DEST | [-d DEST] JOBS]"
+  echo """Usage:
+  clone [options] [-s SOURCE -d DEST | [-d DEST] JOBS]
 
-  echo "Mandatory arguments to long options are mandatory for short options too."
-  # Print all options here
+Options:
+  Mandatory arguments to long options are mandatory for short options too.
 
-  # Notes:
-  # - sources after "-s" are a string of comma or
-  #   whitespace separated source paths
-  echo Sorry, the help message is not ready yet.
+  -s|--src SOURCE
+    Copy list of whitespace/comma separated files to destination
+
+  -d|--dest DESTINATION
+    Set DESTINATION as destination path
+
+  -f|--config CONFIG
+    Replace default config file with CONFIG
+
+  -l|--list
+    List available jobs
+
+  -a|--all
+    Run all jobs
+
+  -I|--incremental
+    Create incremental backups in destination
+
+  -i|--ignore-existing
+    Ignore files that already exist in destination
+
+  -D|--delete
+    Delete from destination files that were also deleted in source
+
+  -u|--update
+    Skip files that are newer on the receiver
+
+  -c|--checks
+    Run additional checks (experimental)
+
+  -L|--lightweight
+    Perform lighter (faster) checks
+
+  -C|--check-run
+    Dry run with checks
+
+  -n|--dry-run
+    Perform a trial run with no changes applied
+
+  -S|--safe
+    Don't perform risky operations like sourcing or copying
+
+  -X|--pass ARGS
+    Pass ARGS verbatim as string of parameters to copying command
+    (e.g: rsync, tar, ...)
+
+  -t|--tar
+    Use tar for copying instead of the default command (rsync)
+
+  -y|--no-prompt 
+    Do not prompt for verification before execution
+
+  -P|--interactive
+    Prompt user for confirmation before actions
+
+  -H|--human
+    Human readable format
+
+  -p|--progress
+    Display overall progress
+
+  -v|--verbose
+    Print more stuff
+
+  --logorrheic
+    Print even more stuff
+
+  -N|--no-logs
+    Flush logs
+
+  --background
+    If possible run with minimum resources
+
+  -V|--version
+    Print version number and exit
+
+  -h|--help 
+    Print this help message
+
+Examples:
+  # backup current directory into /mnt as a tar archive
+  clone -s . -d /mnt --tar
+  # run `sync` job, then `inc` job
+  clone sync inc
+  # print jobs list and exit
+  clone --list
+  # run all jobs found
+  clone -a"""
+
   exit 0
 }
 
@@ -143,8 +226,8 @@ parse_args () {
     put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
   else
     # Colon after option means additional arg
-    _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,pass:,use-tar,no-prompt,interactive,progress,verbose,logorrheic,no-logs,background,version,help"
-    _options="s:d:f:laIiDucLCnSX:tyPpvNVh"
+    _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,pass:,use-tar,no-prompt,interactive,human,progress,verbose,logorrheic,no-logs,background,version,help"
+    _options="s:d:f:laIiDucLCnSX:tyPHpvNVh"
 
     # Parse command line arguments using getopt
     _GETOPT_PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- "$@")
@@ -193,7 +276,7 @@ parse_args () {
       -I|--incremental)
         # Create incremental backups in dest
         incremental=1
-        options+=' --delete -i'
+        options+=' --itemize-changes'
         shift
         ;;
       -i|--ignore-existing)
@@ -262,6 +345,11 @@ parse_args () {
         # Prompt user for actions
         # (overrides -y|--no-prompt)
         interactive=1
+        shift
+        ;;
+      -H|--human)
+        # Human readable
+        options+=' -h'
         shift
         ;;
       -p|--progress)
@@ -517,15 +605,18 @@ do_sync () {
   active_err_file="$err_file"
   
   # Do the actual copying
-  if [ -z "$use_tar" ]; then # use rsync
-    if [ -n "$verbose" ]; then # Also write to stdout
-      # Copy each source to destination
-      rsync -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_log_file}") 2> >(tee "${active_err_file}" >&2)
-    else # Write to logs only
-      # Quiet mode
-      # Passes stdout only to pipe
-      rsync -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" >&2) > /dev/null 
+  if [ -z "$use_tar" ]; then # Use tar not set
+    if [ -n "$verbose" ]; then # Verbose mode
+      echo "OPTIONS: ${rsync_opts}"
+      # Write to both logs and stdout
+      rsync -aP exclude-from="${clone_path}/exclude-file.txt" $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_log_file}") 2> >(tee "${active_err_file}" >&2)
+    else # Quiet mode
+      # Write to logs only and not to stdout#
+      rsync -aP exclude-from="${clone_path}/exclude-file.txt" $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" >&2) > ${active_log_file}
     fi
+
+    # Save completed backup timestamp to log file
+    echo "Backup completed on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
 
     # If checks option is set
     if [ -n "$checks" ]; then
@@ -539,7 +630,7 @@ do_sync () {
   else # use tar
     # shellcheck source=tar.sh
     . "$tar_module"
-    do_tar_sync $options $tar_opts $pass_args "$1" "${_dest}"
+    do_tar_sync exclude-from="${clone_path}/exclude-file.txt" $options $tar_opts $pass_args "$1" "${_dest}"
   fi
 }
 
@@ -805,5 +896,7 @@ main () {
 
 # All over
 if main "$@"; then # If exiting with 0
+  # Write closing separator to log file
+  echo "========================" >> "${active_log_file}"
   printf "done.\n"
 fi

@@ -4,12 +4,19 @@
  - fix min changes option
 - add support for remote backups
 - add param destination override for jobs
-- add md5sum option for checks (separate: + or - diff checks)
-- fix loop error with jobs_path="." 
+- add/switch to md5sum option for checks (separate: + or - diff checks)
+- fix loop error when jobs_path="." 
 - add optional notification at the end of each exec_job 
 - uninstall.sh script
 - add post-exec variable in config and jobs
  - append each one to a cmd variable after sourcing
  - eval at the end
  - (note: pre-exec cmds are just plain bash in the sourced files)
+- add --recover option to "reverse" a backup
+ - auto generate recovery.sh to restore original file permissions
+- add sync option which does not delete from dest but instead imports missing files
 - write backup jobs that also push to git repos and backup to ssh
+- write README/help
+- update default config/jobs
+- add start/end/duration time
+- add exclude file option (for both rsync and tar)
