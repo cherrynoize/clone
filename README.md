@@ -157,10 +157,10 @@ for your hardware.) Also, storage is expensive.
 
 ## Contribute
 
-This application is still in **alpha**. So if you want to
-contribute, just run Clone and submit any bug or unwanted
+This application is still in *alpha*. So if you want to
+contribute, you can just run Clone and submit any bug or unwanted
 behaviour either as an issue or as a PR. All feedback and
-potential improvements are well accepted.
+ideas for improvement are very well accepted.
 
 ## Contacts
 
@@ -173,7 +173,7 @@ request. Or where possible, please do open a public issue.
 
 ## Donations
 
-If you wanted to show your support or just buy me a pizza:
+If you wanted to show your support (or just buy me a pizza):
 
     ETH   0x5938C4DA9002F1b3a54fC63aa9E4FB4892DC5aA8
 
