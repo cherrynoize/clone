@@ -109,7 +109,7 @@ replicate the current setup (obviously needs customization, but it's
 a starting point). You should make sure the backup partition
 is formatted accordingly to source so permissions are not lost,
 or you can compensate with the aid of third-party applications (e.g:
-etckeeper for /etc files).
+etckeeper for `/etc` files).
 
 Also consider maintaining a list of installed packages in one of the
 backed up locations so you can easily reinstall them with your
