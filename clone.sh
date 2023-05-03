@@ -124,7 +124,7 @@ Version $VERSION
 # Print help message and quit
 print_help () {
   echo """Usage:
-  clone [options] [-s SOURCE -d DEST | [-d DEST] JOBS]
+  clone [OPTIONS] [-s SOURCE -d DEST | [-d DEST] JOBS]
 
 Options:
   Mandatory arguments to long options are mandatory for short options too.
