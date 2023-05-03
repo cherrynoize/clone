@@ -136,8 +136,7 @@ Using the `post-exec` functionality of Clone, we can add something
 like:
 
     # --needed is for idempotency
-    pacman -S --needed - < /etc/pacman.d/pkglist
-    yay -S --needed - < /etc/pacman.d/pkglist_aur
+    pacman -S --needed - < /etc/pacman.d/pkglist; yay -S --needed - < /etc/pacman.d/pkglist_aur
 
 To automatically restore all packages after backup recovery.
 
@@ -150,11 +149,11 @@ for your hardware.) Also, storage is expensive.
 
 ## Error codes
 
-- 0 OK
-- 1 command external (e.g: command syntax/arg format)
-- 2 command internal (e.g: bad configuration)
-- 3 file (e.g: file not found)
-- 4 path (e.g: dir not found)
+    0 OK
+    1 command external (e.g: command syntax/arg format)
+    2 command internal (e.g: bad configuration)
+    3 file (e.g: file not found)
+    4 path (e.g: dir not found)
 
 ## Contribute
 
