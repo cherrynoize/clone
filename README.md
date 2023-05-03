@@ -3,11 +3,11 @@
 An easily accessible backup automation tool with focus on consistency
 and automation. 
 
-#### Fast, simple, just *rsync*--except less scary.
+#### Fast, simple, just *rsync*, except less scary.
 
 ## Disclaimer
 
-clone is alpha at best. I've been extensively testing it on my
+Clone is alpha at best. I've been extensively testing it on my
 machine, but still:
 - run jobs in verbose mode first and check found maps carefully to
 see if they were properly identified;
@@ -38,11 +38,11 @@ ever again.
 
 ## Usage
 
-    clone [options] [-f config_file] [-s sources -d destination | jobs] 
+    Clone [options] [-f config_file] [-s sources -d destination | jobs] 
 
 To view the full usage message type:
 
-    clone -h|--help
+    Clone -h|--help
 
 ## Syntax
 
@@ -51,22 +51,22 @@ extravaganzas).
 
 ### Meaning
 
-    clone -s /path/to/src -d /path/to/dest
+    Clone -s /path/to/src -d /path/to/dest
 
 The contents of `src` will be copied into `/path/to/dest/src`.
 
-    clone -s /path/to/src/ -d /path/to/dest
+    Clone -s /path/to/src/ -d /path/to/dest
 
 The contents of `src` will also be copied into `/path/to/dest/src`.
 
-    clone -s /path/to/src/. -d /path/to/dest
+    Clone -s /path/to/src/. -d /path/to/dest
 
 The contents of `src` will be copied into `/path/to/dest`.
 
 ## Configuration
 
-clone can be configured in the default config file (defined at the
-top of the clone script) or in any job file to be run.
+Clone can be configured in the default config file (defined at the
+top of the Clone script) or in any job file to be run.
 
 Configurations specified in currently running jobs is local to the
 active job only and overrides main config file's parameters.
@@ -120,7 +120,7 @@ install or removal. This way if we backup the `/etc` directory, we
 also have a way of reproducing all binaries, libraries, etc. that
 were previously installed using our package manager.
 
-Using the `post-exec` functionality of clone, we can add something
+Using the `post-exec` functionality of Clone, we can add something
 like:
 
     # --needed is for idempotency
@@ -147,7 +147,7 @@ for your hardware.) Also, storage is expensive.
 ## Contribute
 
 This application is still in **alpha**. So if you want to
-contribute, just run clone and submit any bug or unwanted
+contribute, just run Clone and submit any bug or unwanted
 behaviour either as an issue or as a PR. All feedback and
 potential improvements are well accepted.
 
