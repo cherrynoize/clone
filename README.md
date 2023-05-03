@@ -38,28 +38,38 @@ ever again.
 
 ## Usage
 
-    Clone [options] [-f config_file] [-s sources -d destination | jobs] 
+For an easy quickstart just run:
+
+    clone JOB_NAME
+
+Replace JOB\_NAME with your job file.
+
+This is kind of the whole idea behind Clone: configuring jobs with
+all the desired options and commands so you can later just call them
+by their name, not worrying about re-defining options each time, which
+can be tedious if it's the same job over and over, but even worse if
+the command is always changing.
 
 To view the full usage message type:
 
-    Clone -h|--help
+    clone --help
 
 ## Syntax
 
 Follows GNU cp convention (meaning no BSD trailing slash
-extravaganzas).
+extravaganza).
 
 ### Meaning
 
-    Clone -s /path/to/src -d /path/to/dest
+    clone -s /path/to/src -d /path/to/dest
 
 The contents of `src` will be copied into `/path/to/dest/src`.
 
-    Clone -s /path/to/src/ -d /path/to/dest
+    clone -s /path/to/src/ -d /path/to/dest
 
 The contents of `src` will also be copied into `/path/to/dest/src`.
 
-    Clone -s /path/to/src/. -d /path/to/dest
+    clone -s /path/to/src/. -d /path/to/dest
 
 The contents of `src` will be copied into `/path/to/dest`.
 
