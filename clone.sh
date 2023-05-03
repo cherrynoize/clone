@@ -2,7 +2,7 @@
 #
 #   ____ _                        _
 #  / ___| | ___  _ __   ___   ___| |__
-# | |   | |/ _ \| '_ \ / _ \ / __| '_ \  ~ Clone backup automation sware
+# | |   | |/ _ \| '_ \ / _ \ / __| '_ \  ~ Clone backup automation utility
 # | |___| | (_) | | | |  __/_\__ \ | | | ~ https://github.com/cherrynoize
 #  \____|_|\___/|_| |_|\___(_)___/_| |_| ~ cherry-noize
 #
