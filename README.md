@@ -129,7 +129,7 @@ This is an example hook for `pacman` that does just that:
 
 `pkglist` (as well as `pkglist_aur`) is updated after every package
 install or removal. This way if we backup the `/etc` directory, we
-also have a way of reproducing all binaries, libraries, etc. that
+inherently have a way of reproducing all binaries, libraries, etc. that
 were previously installed using our package manager.
 
 Using the `post-exec` functionality of Clone, we can add something
