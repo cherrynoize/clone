@@ -20,3 +20,4 @@
 - update default config/jobs
 - add start/end/duration time
 - add exclude file option (for both rsync and tar)
+- implement log size containment (don't let it get huge)

@@ -621,10 +621,10 @@ do_sync () {
   if [ -z "$use_tar" ]; then # use rsync
     if [ -n "$verbose" ]; then
       # Write to both logs and stdout
-      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_stdout_file}") 2> >(tee "${active_err_file}" >&2)
+      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_stdout_file}" -a) 2> >(tee "${active_err_file}" -a >&2)
     else # Quiet mode
       # Write to logs only and not stdout
-      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" >&2) > ${active_stdout_file}
+      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" -a >&2) >> ${active_stdout_file}
     fi
 
     # If checks option is set
