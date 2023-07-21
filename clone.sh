@@ -41,7 +41,8 @@ tar_module="${install_dir}/tar.sh"
 # Location for log files
 log_path="/var/log/clone"
 log_file="${log_path}/clone.log"
-err_file="${log_path}/clone_err.log"
+stdout_file="${log_path}/stdout.log"
+err_file="${log_path}/err.log"
 
 # Job file extension
 JOB_FILE_EXT=".sh"
@@ -101,6 +102,7 @@ printf "$color_normal" # Set initial color
 
 # Set active log and err file for writing
 active_log_file="$log_file"
+active_stdout_file="$stdout_file"
 active_err_file="$err_file"
   
 # Here we define a lot of useful functions
@@ -612,19 +614,18 @@ do_sync () {
     fi
   fi
 
+  # Start backup
+  echo "Starting backup on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
+
   # Do the actual copying
-  if [ -z "$use_tar" ]; then # Use tar not set
-    if [ -n "$verbose" ]; then # Verbose mode
-      echo "OPTIONS: ${rsync_opts}"
+  if [ -z "$use_tar" ]; then # use rsync
+    if [ -n "$verbose" ]; then
       # Write to both logs and stdout
-      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_log_file}") 2> >(tee "${active_err_file}" >&2)
+      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_stdout_file}") 2> >(tee "${active_err_file}" >&2)
     else # Quiet mode
       # Write to logs only and not stdout
-      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" >&2) > ${active_log_file}
+      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" >&2) > ${active_stdout_file}
     fi
-
-    # Save completed backup timestamp to log file
-    echo "Backup completed on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
 
     # If checks option is set
     if [ -n "$checks" ]; then
@@ -640,6 +641,9 @@ do_sync () {
     . "$tar_module"
     do_tar_sync --exclude-from="${clone_path}/exclude-file.txt" $options $tar_opts $pass_args "$1" "${_dest}"
   fi
+
+  # Save completed backup timestamp to log file
+  echo "Backup completed on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
 }
 
 # Run a whole sync job 
