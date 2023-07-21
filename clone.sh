@@ -86,14 +86,9 @@ color_active=$YELLOW
 color_normal=$NC
 italic=$BG_PINK_I
 
-# List entry prefix 
 list_prefix="->"
-
-# Right arrow
 arrow="->"
-
-# Verbose output separator
-#separator="============================\n"
+sep="========================\n"
 
 # Initialization
 shopt -s extglob # Remove trailing slashes
@@ -614,6 +609,9 @@ do_sync () {
     fi
   fi
 
+  # Write opening separator to log file
+  echo "$sep" >> "${active_log_file}"
+
   # Start backup
   echo "Starting backup on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
 
@@ -788,7 +786,7 @@ main () {
   fi
 
   if [ -n "$verbose" ]; then
-    SEP=$separator
+    SEP=$sep
   fi
 
   # Print launch message
@@ -909,6 +907,6 @@ main () {
 # All over
 if main "$@"; then # If exiting with 0
   # Write closing separator to log file
-  echo "========================" >> "${active_log_file}"
+  echo "$sep" >> "${active_log_file}"
   printf "done.\n"
 fi
