@@ -93,6 +93,29 @@ to editing the given
 values and preserve the basic structure. Key concepts are still
 always addressed in comments.
 
+### In-file scripting
+
+The config and job files are all sourced from a bash shell, so any
+bash command is technically available. If you want to use local
+variables that are not used to communicate directly with clone, you
+may want to name the variables starting with an underscore (*_*), to
+avoid unknowingly interfering with some program runtime variable.
+
+For instance if you need to use the value multiple times:
+
+    var="/path/to/dir"
+
+You may want to include it like so:
+
+    # here _var is only needed locally (in the same file)
+    _var="/path/to/dir"
+
+    # sync_map is a clone-specific variable (-g means global)
+    declare -gA sync_map=(
+      ["/foo"]="${_var}/foo"
+      ["/bar"]="${_var}/bar"
+    )
+
 ## System cloning
 
 If you want to automate system reproduction a good rule of thumb
@@ -106,10 +129,12 @@ run.
 You can find in the example jobs a useful [sync map of user data
 files](jobs/sync.sh) that can be easily translated onto a new system to
 replicate the current setup (obviously needs customization, but it's
-a starting point). You should make sure the backup partition
-is formatted accordingly to source so permissions are not lost,
-or you can compensate with the aid of third-party applications (e.g:
-etckeeper for `/etc` files).
+a starting point). If using rsync you should make sure the backup
+partition is formatted accordingly to source so permissions are not
+lost, or you can compensate with the aid of third-party applications
+(e.g: etckeeper for `/etc` files).
+
+However, creating an archive with tar might be a more suitable option.
 
 Also consider maintaining a list of installed packages in one of the
 backed up locations so you can easily reinstall them with your
@@ -160,27 +185,21 @@ for your hardware.) Also, storage is expensive.
 This application is still in *alpha*. So if you want to
 contribute, you can just run Clone and submit any bug or unwanted
 behaviour either as an issue or as a PR. All feedback and
-ideas for improvement are very well accepted.
+ideas for improvement are more than welcome.
 
 ## Contacts
 
-> [u/cherrynoize](https://www.reddit.com/user/cherrynoize)
->
-> [cherrynoize@duck.com](mailto:cherrynoize@duck.com)
-
-Please feel free to contact me about any feedback or feature
-request. Or where possible, please do open a public issue. 
+Please feel free to
+[contact me](https://cherrynoize.github.io/#/contacts) about any
+feedback or feature request. Where possible, consider opening a
+public issue. 
 
 ## Donations
 
-If you wanted to show your support (or just buy me a pizza):
+If you wanted to show your support (or just buy me a pizza)
+[here](https://cherrynoize.github.io/#/contribute) are some options.
 
-    ETH   0x5938C4DA9002F1b3a54fC63aa9E4FB4892DC5aA8
-
-    SOL   G77bErQLYatQgMEXHYUqNCxFdUgKuBd8xsAuHjeqvavv
-
-    BNB   0x0E0eAd7414cFF412f89BcD8a1a2043518fE58f82
-
-    LUNC  terra1n5sm6twsc26kjyxz7f6t53c9pdaz7eu6zlsdcy
+This program is in early development so just running it and
+reporting on any issue means a lot already.
 
 ### Thank you for using clone.sh.

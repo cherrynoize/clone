@@ -11,7 +11,7 @@
 #
 
 # Fetch install dir
-install_dir="$( cd -- "$( dirname -- "${BASH_SOURCE[0]}" )" &> /dev/null && pwd )"
+install_dir="$(dirname $(readlink -f $0))"
 
 # Path to clone dir
 clone_path="${HOME}/.clone"
@@ -39,8 +39,9 @@ config_file="${clone_path}/config.sh"
 tar_module="${install_dir}/tar.sh"
 
 # Location for log files
-log_file="${clone_path}/logs/clone.log"
-err_file="${clone_path}/logs/clone_err.log"
+log_path="/var/log/clone"
+log_file="${log_path}/clone.log"
+err_file="${log_path}/clone_err.log"
 
 # Job file extension
 JOB_FILE_EXT=".sh"
@@ -98,6 +99,10 @@ shopt -s extglob # Remove trailing slashes
 shopt -s lastpipe # Last pipe runs in current shell
 printf "$color_normal" # Set initial color
 
+# Set active log and err file for writing
+active_log_file="$log_file"
+active_err_file="$err_file"
+  
 # Here we define a lot of useful functions
 # :(funcs)
 
@@ -216,14 +221,14 @@ Exit codes:
   4 path (e.g: dir not found)
 
 Examples:
-  # backup current directory into /mnt as a tar archive
   clone -s . -d /mnt --tar
-  # run `sync` job, then `inc` job
+   backup current directory into /mnt as a tar archive
   clone sync inc
-  # print jobs list and exit
+   run \`sync\` job, then \`inc\` job
   clone --list
-  # run all jobs found
-  clone -a"""
+   print jobs list and exit
+  clone -a
+   run all jobs found"""
 
   exit 0
 }
@@ -237,7 +242,7 @@ parse_args () {
     _options="s:d:f:laIiDucLCnSX:tyPHpvNVh"
 
     # Parse command line arguments using getopt
-    _GETOPT_PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- "$@")
+    _GETOPT_PARSED=$(getopt --options=$_options --longoptions=$_longopts --name "$0" -- $@)
     if [[ $? -ne 0 ]]; then
       exit 1
     else
@@ -524,10 +529,10 @@ parse_file () {
     return 1
   }
 
-   # Append file options to args
-   parse_args "${opts[@]}"
-   # Add any free arguments to list
-   free_args+=( "${parsed[@]}" )
+  # Append file options to args
+  parse_args "${opts[@]}"
+  # Add any free arguments to list
+  free_args+=( "${parsed[@]}" )
 }
 
 # Sync $1->$2
@@ -558,9 +563,9 @@ do_sync () {
     fi
 
     # Update with new log and err file for writing
-    log_base="${active_log_file%.*}"
+    log_base="${log_file%.*}"
     active_log_file="${log_base}_${_date}${LOG_FILE_EXT}"
-    err_base="${active_err_file%.*}"
+    err_base="${err_file%.*}"
     active_err_file="${err_base}_${_date}${LOG_FILE_EXT}"
 
     # Update with incremental dest name
@@ -607,19 +612,15 @@ do_sync () {
     fi
   fi
 
-  # Set active log and err file for writing
-  active_log_file="$log_file"
-  active_err_file="$err_file"
-  
   # Do the actual copying
   if [ -z "$use_tar" ]; then # Use tar not set
     if [ -n "$verbose" ]; then # Verbose mode
       echo "OPTIONS: ${rsync_opts}"
       # Write to both logs and stdout
-      rsync -aP exclude-from="${clone_path}/exclude-file.txt" $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_log_file}") 2> >(tee "${active_err_file}" >&2)
+      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_log_file}") 2> >(tee "${active_err_file}" >&2)
     else # Quiet mode
-      # Write to logs only and not to stdout#
-      rsync -aP exclude-from="${clone_path}/exclude-file.txt" $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" >&2) > ${active_log_file}
+      # Write to logs only and not stdout
+      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" >&2) > ${active_log_file}
     fi
 
     # Save completed backup timestamp to log file
@@ -637,7 +638,7 @@ do_sync () {
   else # use tar
     # shellcheck source=tar.sh
     . "$tar_module"
-    do_tar_sync exclude-from="${clone_path}/exclude-file.txt" $options $tar_opts $pass_args "$1" "${_dest}"
+    do_tar_sync --exclude-from="${clone_path}/exclude-file.txt" $options $tar_opts $pass_args "$1" "${_dest}"
   fi
 }
 
