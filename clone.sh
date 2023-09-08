@@ -56,12 +56,6 @@ DEFAULT_INDEX_LEN="2"
 # Default starting index
 start_index=0
 
-# Date format for writing incremental backups
-# Date precision also defines min interval between incremental 
-# backups (i.e: the least significant unit)
-#date_fmt="+%Y-%m-%d_%H-%M-%S" # Try to update backup every second
-date_fmt="+%Y-%m-%d" # Daily backup
-
 # Version number
 VERSION="0.00.6"
 
@@ -677,12 +671,6 @@ exec_job () {
 
   # If running incremental backup and we're not in dry run
   if [ -n "$incremental" ] && [ -z "$dry_run" ]; then
-    # Fetch date
-    _date="$(date "${date_fmt}")"
-
-    # Add date to base dir
-    base_dir="${base_dir}_${_date}"
-
     # Create dir
     mkdir -p "${base_dir}" 2>/dev/null || put_err "mkdir: could not create directory"
   fi
