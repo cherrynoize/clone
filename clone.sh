@@ -544,9 +544,6 @@ do_sync () {
 
   # Incremental backups format
   if [ -n "$incremental" ]; then
-    # Fetch date
-    _date="$(date "${date_fmt}")"
-
     # Fetch dest dir
     _dest_dir="${_dest}"
     if [ ! -d "${_dest}" ]; then
@@ -680,6 +677,9 @@ exec_job () {
 
   # If running incremental backup and we're not in dry run
   if [ -n "$incremental" ] && [ -z "$dry_run" ]; then
+    # Fetch date
+    _date="$(date "${date_fmt}")"
+
     # Add date to base dir
     base_dir="${base_dir}_${_date}"
 
