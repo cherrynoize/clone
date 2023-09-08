@@ -194,6 +194,7 @@ contributing more deeply.
 
 - Add timer that tells you total expired time after job execution
 - Remove oldest entries after settable amount of incremental backups (`e.g: $max_snapshots`) is reached
+- I did try my best to keep the code tidy but I clearly didn't suceed so if you can refactor some code to improve readability I will gladly accept the PR
 
 ## Contacts
 
