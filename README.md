@@ -195,6 +195,7 @@ contributing more deeply.
 - Add timer that tells you total expired time after job execution
 - Remove oldest entries after settable amount of incremental backups (`e.g: $max_snapshots`) is reached
 - Make log files sub dir specific to each user (i.e: `/var/log/clone/$USER`) - then ensure owner of dir and log files is user
+- Make incremental backups look for latest link dest given specific job name (rather than in the whole dir)
 - I did try my best to keep the code tidy but I clearly didn't suceed so if you can refactor some code to improve readability I will gladly accept the PR
 
 ## Contacts
