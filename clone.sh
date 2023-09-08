@@ -564,9 +564,6 @@ do_sync () {
     active_log_file="${log_base}_${_date}${LOG_FILE_EXT}"
     err_base="${err_file%.*}"
     active_err_file="${err_base}_${_date}${LOG_FILE_EXT}"
-
-    # Update with incremental dest name
-    _dest="${_dest}_${_date}"
   fi
 
   # Check if dir exists (or is file).
@@ -679,6 +676,15 @@ exec_job () {
   # Suppress prompt hint
   if [ -n "$verbose" ] && [ -z "$noprompt" ]; then
     put_warn "(you can suppress this prompt by passing \`-y\` or \`--noprompt\`)\n"
+  fi
+
+  # If running incremental backup and we're not in dry run
+  if [ -n "$incremental" ] && [ -z "$dry_run" ]; then
+    # Add date to base dir
+    base_dir="${base_dir}_${_date}"
+
+    # Create dir
+    mkdir -p "${base_dir}" 2>/dev/null || put_err "mkdir: could not create directory"
   fi
 
   # Sync

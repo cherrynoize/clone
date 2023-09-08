@@ -187,6 +187,13 @@ contribute, you can just run Clone and submit any bug or unwanted
 behaviour either as an issue or as a PR. All feedback and
 ideas for improvement are more than welcome.
 
+Also you can check the [TODO](#todo) list in case you feel like
+contributing more deeply.
+
+## TODO
+
+- Add timer that tells you total expired time after job execution
+
 ## Contacts
 
 Please feel free to
