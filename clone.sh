@@ -11,7 +11,7 @@
 #
 
 # Fetch install dir
-install_dir="$(dirname $(readlink -f $0))"
+install_dir="$(dirname "$(readlink -f "$0")")"
 
 # Path to clone dir
 clone_path="${HOME}/.clone"
@@ -32,7 +32,7 @@ jobs_path="${clone_path}/jobs"
 config_file="${clone_path}/config.sh"
 
 #
-# You should override all following values from your config file
+# Only override following values from your config file
 #
 
 # Path to tar module
@@ -51,10 +51,13 @@ JOB_FILE_EXT=".sh"
 LOG_FILE_EXT=".log"
 
 # Default number of digits for varying index
-DEFAULT_INDEX_LEN="2"
+DEFAULT_INDEX_LEN=2
 
 # Default starting index
 start_index=0
+
+# Default transfer mode
+transfer_mode=rsync
 
 # Version number
 VERSION="0.00.6"
@@ -119,114 +122,97 @@ Version $VERSION
 
 # Print help message and quit
 print_help () {
-  echo """Usage:
-  clone [OPTIONS] [-s SOURCE -d DEST | [-d DEST] JOBS]
+  cat<<EOF
+Usage:
+  clone [options] [-s source -d dest | [-d dest] jobs]
 
 Options:
   Mandatory arguments to long options are mandatory for short options too.
 
   -s|--src SOURCE
     Copy list of whitespace/comma separated files to destination
-
   -d|--dest DESTINATION
     Set DESTINATION as destination path
-
   -f|--config CONFIG
     Replace default config file with CONFIG
-
   -l|--list
     List available jobs
-
   -a|--all
     Run all jobs
-
   -I|--incremental
     Create incremental backups in destination
-
   -i|--ignore-existing
     Ignore files that already exist in destination
-
   -D|--delete
     Delete from destination files that were also deleted in source
-
   -u|--update
     Skip files that are newer on the receiver
-
   -c|--checks
     Run additional checks (experimental)
-
   -L|--lightweight
     Perform lighter (faster) checks
-
   -C|--check-run
     Dry run with checks
-
   -n|--dry-run
     Perform a trial run with no changes applied
-
   -S|--safe
     Don't perform risky operations like sourcing or copying
-
   -X|--pass ARGS
     Pass ARGS verbatim as string of parameters to copying command
     (e.g: rsync, tar, ...)
-
-  -t|--tar
-    Use tar for copying instead of the default command (rsync)
-
+  -m|--mode [mode]
+    Use specified transfer mode instead of $transfer_mode (default)
+    mode can be one of rsync, tar, rclone
   -y|--no-prompt 
     Do not prompt for verification before execution
-
   -P|--interactive
     Prompt user for confirmation before actions
-
   -H|--human
     Human readable format
-
   -p|--progress
     Display overall progress
-
   -v|--verbose
     Print more stuff
-
   --logorrheic
     Print even more stuff
-
   -N|--no-logs
     Flush logs
-
   --background
     If possible run with minimum resources
-
   -V|--version
     Print version number and exit
-
   -h|--help 
     Print this help message
 
 Exit codes:
-  0 OK
-  1 command external (e.g: command syntax/arg format)
-  2 command internal (e.g: bad configuration)
-  3 file (e.g: file not found)
-  4 path (e.g: dir not found)
+  0|OK
+    all good!
+  1|CMDEXT
+    command syntax/arg format
+  2|CMDINT
+    bad configuration
+  3|FILE
+    file not found
+  4|PATH
+    dir not found
 
 Examples:
-  clone -s . -d /mnt --tar
-   backup current directory into /mnt as a tar archive
+  clone -s . -d /path/to/dest -m tar
+    backup current dir into /path/to/dest as a tar archive
   clone sync inc
-   run \`sync\` job, then \`inc\` job
+    run 'sync' then 'inc' jobs
   clone --list
-   print jobs list and exit
+    list all jobs
   clone -a
-   run all jobs found"""
+    run all jobs in sequence
+EOF
 
   exit 0
 }
 
 parse_args () {
   if [ -z "$use_getopt" ]; then
-    put_warn "warning: \`getopt --test\` did not return 4...\ndefaulting to std handling..."
+    put_warn "warning: 'getopt --test' did not return 4...\ndefaulting to std handling..."
   else
     # Colon after option means additional arg
     _longopts="src:,dest:,config:,list,all,incremental,ignore-existing,delete,update,checks,lightweight,check-run,dry-run,safe,pass:,use-tar,no-prompt,interactive,human,progress,verbose,logorrheic,no-logs,background,version,help"
@@ -333,10 +319,10 @@ parse_args () {
         IFS=', ' read -r -a pass_args <<< "$2"
         shift 2
         ;;
-      -t|--tar)
-        # Use tar
-        use_tar=1
-        shift
+      -m|--mode)
+        # Options: rsync | tar | rclone
+        transfer_mode="$2"
+        shift 2
         ;;
       -y|--no-prompt)
         # Do not prompt for verification 
@@ -445,7 +431,7 @@ continue_prompt () {
     [Yy]* ) echo; return;;
     [Nn]* ) exit;;
     "" ) exit;;
-    * ) printf "\ninvalid option: \'%s\'\n\n" "$input";;
+    * ) printf "\ninvalid option: '%s'\n\n" "$input";;
   esac
   return 1
 }
@@ -604,29 +590,38 @@ do_sync () {
   echo "Starting backup on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
 
   # Do the actual copying
-  if [ -z "$use_tar" ]; then # use rsync
-    if [ -n "$verbose" ]; then
-      # Write to both logs and stdout
-      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_stdout_file}" -a) 2> >(tee "${active_err_file}" -a >&2)
-    else # Quiet mode
-      # Write to logs only and not stdout
-      rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" -a >&2) >> ${active_stdout_file}
-    fi
+  case "$transfer_mode" in
+    rsync)
+      if [ -n "$verbose" ]; then
+        # Write to both logs and stdout
+        rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_stdout_file}" -a) 2> >(tee "${active_err_file}" -a >&2)
+      else # Quiet mode
+        # Write to logs only and not stdout
+        rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" -a >&2) >> ${active_stdout_file}
+      fi
 
-    # If checks option is set
-    if [ -n "$checks" ]; then
-      # Run checks
-      do_check "$1" "${_dest}" || {
-        put_err "traceback: failed while running check on $1->${_dest}\nwill exit now.\n";
-        exit 5;
-      }
-      [[ -n "$verbose" ]] && printf "\nall tests passed\n"
-    fi
-  else # use tar
-    # shellcheck source=tar.sh
-    . "$tar_module"
-    do_tar_sync --exclude-from="${clone_path}/exclude-file.txt" $options $tar_opts $pass_args "$1" "${_dest}"
-  fi
+      # If checks option is set
+      if [ -n "$checks" ]; then
+        # Run checks
+        do_check "$1" "${_dest}" || {
+          put_err "traceback: failed while running check on $1->${_dest}\nwill exit now.\n";
+          exit 5;
+        }
+        [[ -n "$verbose" ]] && printf "\nall tests passed\n"
+      fi
+      ;;
+    tar)
+      # shellcheck source=tar.sh
+      . "$tar_module"
+      do_tar_sync --exclude-from="${clone_path}/exclude-file.txt" $options $tar_opts $pass_args "$1" "${_dest}"
+      ;;
+    rclone)
+      rclone --exclude-from="${clone_path}/exclude-file.txt" $options $rclone_opts $pass_args "$1" "${_dest}"
+      ;;
+    *)
+      echo "error: transfer mode '$transfer_mode' not found"
+      exit 1
+  esac
 
   # Save completed backup timestamp to log file
   echo "Backup completed on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
@@ -666,7 +661,7 @@ exec_job () {
 
   # Suppress prompt hint
   if [ -n "$verbose" ] && [ -z "$noprompt" ]; then
-    put_warn "(you can suppress this prompt by passing \`-y\` or \`--noprompt\`)\n"
+    put_warn "(you can suppress this prompt by passing '-y' or '--noprompt')\n"
   fi
 
   # If running incremental backup and we're not in dry run

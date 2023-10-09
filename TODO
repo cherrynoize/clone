@@ -1,8 +1,9 @@
 # TODO
-- remove comma separator in sources param
-- add support for incremental backups
- - fix min changes option
-- add support for remote backups
+? remove comma separator in sources param
+x add support for incremental backups
+ x fix min changes option
+x add support for remote backups
+ - test remote backups
 - add param destination override for jobs
 - add/switch to md5sum option for checks (separate: + or - diff checks)
 - fix loop error when jobs_path="." 
