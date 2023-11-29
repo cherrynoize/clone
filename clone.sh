@@ -1,14 +1,13 @@
 #!/usr/bin/env bash
+# ~ ____ _ ~                      _ ~
+#  / ___| | ___  _ __   ___   ___| |__ ~
+# | |   | |/ _ \| '_ \~/ _ \~/ __| '_ \ ~
+# | |___| | (~) | | | |  __/_\__ \ | | | ~
+# ~\____|_|\___/|_| |_|\___(*)___/_| |_| ~
 #
-#   ____ _                        _
-#  / ___| | ___  _ __   ___   ___| |__
-# | |   | |/ _ \| '_ \ / _ \ / __| '_ \  ~ Clone backup automation utility
-# | |___| | (_) | | | |  __/_\__ \ | | | ~ https://github.com/cherrynoize
-#  \____|_|\___/|_| |_|\___(_)___/_| |_| ~ cherry-noize
-#
-#
-# Configure automated jobs for backing up and syncing files
-#
+# Clone backup and syncing automation utility
+# https://github.com/cherrynoize
+# Author | cherrynoize
 
 # Fetch install dir
 install_dir="$(dirname "$(readlink -f "$0")")"
@@ -24,16 +23,12 @@ fi
 # Jobs dir
 jobs_path="${clone_path}/jobs"
 
-#
-# Set the path to your config file
-#
-
 # Path to config file
 config_file="${clone_path}/config.sh"
 
-#
-# Only override following values from your config file
-#
+###############################################################
+# [!] Only override the following options in your config file #
+###############################################################
 
 # Path to tar module
 tar_module="${install_dir}/tar.sh"
@@ -60,7 +55,7 @@ start_index=0
 transfer_mode=rsync
 
 # Version number
-VERSION="0.00.6"
+VERSION="0.00.6.1"
 
 # Colorschemes
 RED='\033[1;31m'
@@ -98,7 +93,6 @@ active_stdout_file="$stdout_file"
 active_err_file="$err_file"
   
 # Here we define a lot of useful functions
-# :(funcs)
 
 # Print version number and quit
 ver () {
@@ -107,8 +101,8 @@ ver () {
   ____ _                        _
  / ___| | ___  _ __   ___   ___| |__
 | |   | |/ _ \| '_ \ / _ \ / __| '_ \\
-| |___| | (_) | | | |  __/_\__ \ | | |
- \____|_|\___/|_| |_|\___(_)___/_| |_|
+| |___| | (~) | | | |  __/_\__ \ | | |
+ \____|_|\___/|_| |_|\___(*)___/_| |_|
 ======================================
 
 ===========================
@@ -207,7 +201,7 @@ Examples:
     run all jobs in sequence
 EOF
 
-  exit 0
+  exit
 }
 
 parse_args () {
@@ -398,18 +392,18 @@ parse_args () {
   parsed=( "${@}" )
 }
 
-# Print warning msg
+# Output warning
 put_warn () {
   printf "${color_warn}%b${color_normal}\n" "$1"
 }
 
-# Print error and set exit status
+# Output error message and set exit status
 put_err () {
   printf "${color_alert}error: %b${color_normal}\n" "$1"
   return 1
 }
 
-# Print sync check error and set status
+# Output sync check error and set exit status
 sync_err () {
   echo
   # Print error
@@ -436,7 +430,7 @@ continue_prompt () {
   return 1
 }
 
-# Finds differences unique to src
+# Find differences unique to src
 did_sync () {
   diff_res=$(diff --no-dereference -r -q "$_src" "$_dest" | grep -v "^Only in ${_dest}")
   if [ -n "$diff_res" ]; then
@@ -732,7 +726,6 @@ exec_job () {
 }
 
 # Here we start handling command line arguments
-# :(args)
 
 main () {
   # Getopt version
@@ -755,7 +748,6 @@ main () {
   # Can be accessed later on
 
   # From here on we start program execution
-  # :(startup)
 
   if [ -n "$run_in_background" ]; then
     # Run this process with real low priority
@@ -887,7 +879,7 @@ main () {
       printf "${color_title}${list_prefix} FOUND job: %s (%s)${color_normal}\n" "$job_name" "$job_file"
 
       # Run jobs in subshell
-      # This way we can configure local options in the job file 
+      # This way we can configure local options in the job file
       (exec_job)
     done
   fi
