@@ -13,7 +13,7 @@
 install_dir="$(dirname "$(readlink -f "$0")")"
 
 # Path to clone dir
-clone_path="${HOME}/.clone"
+clone_path="$HOME/.clone"
 
 # Override with env default
 if [ -n "$CLONE_PATH" ]; then
@@ -21,23 +21,23 @@ if [ -n "$CLONE_PATH" ]; then
 fi
 
 # Jobs dir
-jobs_path="${clone_path}/jobs"
+jobs_path="$clone_path/jobs"
 
 # Path to config file
-config_file="${clone_path}/config.sh"
+config_file="$clone_path/config.sh"
 
 ###############################################################
 # [!] Only override the following options in your config file #
 ###############################################################
 
 # Path to tar module
-tar_module="${install_dir}/tar.sh"
+tar_module="$install_dir/tar.sh"
 
 # Location for log files
 log_path="/var/log/clone"
-log_file="${log_path}/clone.log"
-stdout_file="${log_path}/stdout.log"
-err_file="${log_path}/err.log"
+log_file="$log_path/clone.log"
+stdout_file="$log_path/stdout.log"
+err_file="$log_path/err.log"
 
 # Job file extension
 JOB_FILE_EXT=".sh"
@@ -378,7 +378,7 @@ parse_args () {
         break
         ;;
       -*)
-        echo "${0}: invalid option -- '${1}'"
+        echo "$0: invalid option -- '$1'"
         exit 1
         ;;
       *)
@@ -389,17 +389,17 @@ parse_args () {
   done
 
   # Put remaining arguments into an array
-  parsed=( "${@}" )
+  parsed=( "$@" )
 }
 
 # Output warning
 put_warn () {
-  printf "${color_warn}%b${color_normal}\n" "$1"
+  printf "$color_warn%b$color_normal\n" "$1"
 }
 
 # Output error message and set exit status
 put_err () {
-  printf "${color_alert}error: %b${color_normal}\n" "$1"
+  printf "$color_alerterror: %b$color_normal\n" "$1"
   return 1
 }
 
@@ -432,7 +432,7 @@ continue_prompt () {
 
 # Find differences unique to src
 did_sync () {
-  diff_res=$(diff --no-dereference -r -q "$_src" "$_dest" | grep -v "^Only in ${_dest}")
+  diff_res=$(diff --no-dereference -r -q "$_src" "$_dest" | grep -v "^Only in $_dest")
   if [ -n "$diff_res" ]; then
     return 1
   fi
@@ -444,7 +444,7 @@ do_check () {
   printf "\n$SEP"
 
   # Print running checks message
-  printf "${color_active}running checks...${color_normal}"
+  printf "$color_activerunning checks...$color_normal"
 
   if [ -z "$lightweight" ]; then # Print heavy load msg
     printf " (this may take a while)"
@@ -466,7 +466,7 @@ do_check () {
   if [[ -e $_dest ]]; then # Dest exists
     if [ -n "$verbose" ]; then
       # Found it
-      printf "${color_active}${list_prefix} FOUND dest: $_dest${color_normal}\n"
+      printf "$color_active$list_prefix FOUND dest: $_dest$color_normal\n"
     fi
 
     # If not lightweight mode
@@ -474,7 +474,7 @@ do_check () {
       if [[ -e $_src ]]; then # Source exists
         if [ -n "$verbose" ]; then
           # Print differences
-          did_sync || sync_err "$_src${arrow}$_dest"
+          did_sync || sync_err "$_src$arrow$_dest"
         else
           # Only print error msg
           did_sync > /dev/null || sync_err "$_src$arrow$_dest"
@@ -496,7 +496,7 @@ parse_file () {
   echo "sourcing $1 file $2"
   # Source file
   . "$2" 2>/dev/null || {
-    put_err "${2}: ${1} file not found\n"
+    put_err "$2: $1 file not found\n"
     return 1
   }
 
@@ -509,7 +509,7 @@ parse_file () {
 # Sync $1->$2
 do_sync () { 
   # Prepare for cloning
-  printf "$SEP${color_title}cloning (%s)${color_normal}\n$SEP\n" "$1"
+  printf "$SEP$color_titlecloning (%s)$color_normal\n$SEP\n" "$1"
   if [ -n "$verbose" ]; then
     echo verifying path to destination...
   fi
@@ -519,86 +519,86 @@ do_sync () {
   # Incremental backups format
   if [ -n "$incremental" ]; then
     # Fetch dest dir
-    _dest_dir="${_dest}"
-    if [ ! -d "${_dest}" ]; then
-      _dest_dir="$(dirname -- "${_dest}")"
+    _dest_dir="$_dest"
+    if [ ! -d "$_dest" ]; then
+      _dest_dir="$(dirname -- "$_dest")"
     fi
     # Full path to last modified element in dest dir
-    link_dest="${_dest_dir}/$(ls -t "${_dest_dir}" 2>/dev/null | head -n 1)"
+    link_dest="$_dest_dir/$(ls -t "$_dest_dir" 2>/dev/null | head -n 1)"
     # Use last dest as link base
     if [ -n "$link_dest" ]; then
-      options+=" --link-dest ${link_dest}"
+      options+=" --link-dest $link_dest"
     fi
 
     # Update with new log and err file for writing
     log_base="${log_file%.*}"
-    active_log_file="${log_base}_${_date}${LOG_FILE_EXT}"
+    active_log_file="${log_base}_$_date$LOG_FILE_EXT"
     err_base="${err_file%.*}"
-    active_err_file="${err_base}_${_date}${LOG_FILE_EXT}"
+    active_err_file="${err_base}_$_date$LOG_FILE_EXT"
   fi
 
   # Check if dir exists (or is file).
   # Create it otherwise
-  if [[ -d "${_dest}" ]]; then # Dir exists
+  if [[ -d "$_dest" ]]; then # Dir exists
     if [ -n "$verbose" ]; then
-      printf "%s: dir already exists\n\n" "${_dest}"
-      printf "${color_hint}skipping mkdir${color_normal}\n\n"
+      printf "%s: dir already exists\n\n" "$_dest"
+      printf "${color_hint}skipping mkdir$color_normal\n\n"
     fi
-  elif [[ -f "${_dest}" ]]; then # Is file
+  elif [[ -f "$_dest" ]]; then # Is file
     if [ -n "$verbose" ]; then
-      printf "%s: file already exists\n\n" "${_dest}"
+      printf "%s: file already exists\n\n" "$_dest"
     fi
-  elif [[ -e "${_dest}" ]]; then # Exists but unrecognized
-    put_err "${_dest}: unrecognized type (not file or directory)\n"
+  elif [[ -e "$_dest" ]]; then # Exists but unrecognized
+    put_err "$_dest: unrecognized type (not file or directory)\n"
   else # Dir not found
     if [ -n "$verbose" ]; then
-      printf "%s: could not find dir\n\n" "${_dest}"
-      printf "${color_hint}running: mkdir -p %s${color_normal}\n\n" "${_dest}"
+      printf "%s: could not find dir\n\n" "$_dest"
+      printf "${color_hint}running: mkdir -p %s$color_normal\n\n" "$_dest"
     fi
 
     # If not in dry run
     if [ -z "$dry_run" ]; then
       # Try to create path to destination
-      mkdir -p "${_dest}" 2>/dev/null || put_err "mkdir: could not create directory"
+      mkdir -p "$_dest" 2>/dev/null || put_err "mkdir: could not create directory"
     fi
   fi
 
   # Start syncing
-  printf "$SEP${color_title}syncing (%s${arrow}%s)${color_normal}\n$SEP\n" "$1" "${_dest}"
+  printf "$SEP${color_title}syncing (%s${arrow}%s)$color_normal\n$SEP\n" "$1" "$_dest"
 
   # Create logs dir
-  if [ -f "${log_file}" ]; then
-    log_dir="$(dirname -- "${log_file}")"
+  if [ -f "$log_file" ]; then
+    log_dir="$(dirname -- "$log_file")"
     if [ ! -e "$log_dir" ]; then
       if [[ "$verbose" -gt "1" ]]; then
-        printf "creating log dir: %1\n\n" "${log_dir}"
+        printf "creating log dir: %1\n\n" "$log_dir"
       fi
-      mkdir -p "${log_dir}" > /dev/null 2>&1
+      mkdir -p "$log_dir" > /dev/null 2>&1
     fi
   fi
 
   # Write opening separator to log file
-  echo "$sep" >> "${active_log_file}"
+  echo "$sep" >> "$active_log_file"
 
   # Start backup
-  echo "Starting backup on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
+  echo "Starting backup on $(date +"%Y-%m-%d %H:%M:%S")" >> "$active_log_file"
 
   # Do the actual copying
   case "$transfer_mode" in
     rsync)
       if [ -n "$verbose" ]; then
         # Write to both logs and stdout
-        rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "${active_stdout_file}" -a) 2> >(tee "${active_err_file}" -a >&2)
+        rsync --exclude-from="$clone_path/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" > >(tee "$active_stdout_file" -a) 2> >(tee "$active_err_file" -a >&2)
       else # Quiet mode
         # Write to logs only and not stdout
-        rsync --exclude-from="${clone_path}/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "${active_err_file}" -a >&2) >> ${active_stdout_file}
+        rsync --exclude-from="$clone_path/exclude-file.txt" -aP $options $rsync_opts $pass_args "$1" "$_dest" 2> >(tee "$active_err_file" -a >&2) >> $active_stdout_file
       fi
 
       # If checks option is set
       if [ -n "$checks" ]; then
         # Run checks
-        do_check "$1" "${_dest}" || {
-          put_err "traceback: failed while running check on $1->${_dest}\nwill exit now.\n";
+        do_check "$1" "$_dest" || {
+          put_err "traceback: failed while running check on $1->$_dest\nwill exit now.\n";
           exit 5;
         }
         [[ -n "$verbose" ]] && printf "\nall tests passed\n"
@@ -607,10 +607,10 @@ do_sync () {
     tar)
       # shellcheck source=tar.sh
       . "$tar_module"
-      do_tar_sync --exclude-from="${clone_path}/exclude-file.txt" $options $tar_opts $pass_args "$1" "${_dest}"
+      do_tar_sync --exclude-from="$clone_path/exclude-file.txt" $options $tar_opts $pass_args "$1" "$_dest"
       ;;
     rclone)
-      rclone --exclude-from="${clone_path}/exclude-file.txt" $options $rclone_opts $pass_args "$1" "${_dest}"
+      rclone --exclude-from="$clone_path/exclude-file.txt" $options $rclone_opts $pass_args "$1" "$_dest"
       ;;
     *)
       echo "error: transfer mode '$transfer_mode' not found"
@@ -618,7 +618,7 @@ do_sync () {
   esac
 
   # Save completed backup timestamp to log file
-  echo "Backup completed on $(date +"%Y-%m-%d %H:%M:%S")" >> "${active_log_file}"
+  echo "Backup completed on $(date +"%Y-%m-%d %H:%M:%S")" >> "$active_log_file"
 }
 
 # Run a whole sync job 
@@ -630,13 +630,13 @@ exec_job () {
       if [ -n "$sources" ]; then # Use set parameters
         # List param defined sources
         for src in "${sources[@]}"; do
-          printf "${color_task}${list_prefix} FOUND source: %s${color_normal}\n" "$src"
+          printf "$color_task$list_prefix FOUND source: %s$color_normal\n" "$src"
         done
-        printf "${color_subtitle}${list_prefix} destination: %s${color_normal}\n" "$destination"
+        printf "$color_subtitle$list_prefix destination: %s$color_normal\n" "$destination"
       else # Use sync map
         # Print job sync map
         for src in "${!sync_map[@]}"; do
-          printf "${color_task}${list_prefix} FOUND mapping: %s${arrow}%s${color_normal}\n" "$src" "${sync_map[$src]}"
+          printf "$color_task$list_prefix FOUND mapping: %s${arrow}%s$color_normal\n" "$src" "${sync_map[$src]}"
         done
       fi
       echo
@@ -661,7 +661,7 @@ exec_job () {
   # If running incremental backup and we're not in dry run
   if [ -n "$incremental" ] && [ -z "$dry_run" ]; then
     # Create dir
-    mkdir -p "${base_dir}" 2>/dev/null || put_err "mkdir: could not create directory"
+    mkdir -p "$base_dir" 2>/dev/null || put_err "mkdir: could not create directory"
   fi
 
   # Sync
@@ -672,7 +672,7 @@ exec_job () {
   else # Run sync with maps
     # Set fallback number of digits for index
     if [ -z "$index_len" ]; then
-      index_len="${DEFAULT_INDEX_LEN}"
+      index_len="$DEFAULT_INDEX_LEN"
     fi
 
     for src in "${!sync_map[@]}"; do # For each map key found
@@ -683,7 +683,7 @@ exec_job () {
         _index_str="$(printf "%0${index_len}d" $_index)"
 
         # Fetch dest using index 
-        dst_res="${sync_map[$src]//\$/${_index_str}}" # Replace dollar sign with index
+        dst_res="${sync_map[$src]//\$/$_index_str}" # Replace dollar sign with index
 
         # Dest unchanged means no dollar sign found
         if [ "$dst_res" == "${sync_map[$src]}" ]; then
@@ -695,7 +695,7 @@ exec_job () {
         if [ ! -e "$dst_res" ]; then
           break
         elif [[ "$verbose" -gt "1" ]]; then
-          echo "${dst_res} already exists"
+          echo "$dst_res already exists"
         fi
 
         # Try next index
@@ -712,13 +712,13 @@ exec_job () {
     if [ -n "$sources" ]; then
       # List param defined sources
       for src in "${sources[@]}"; do
-        printf "${color_task}${list_prefix} synced from: %s${color_normal}\n" "$src"
+        printf "$color_task$list_prefix synced from: %s$color_normal\n" "$src"
       done
-      printf "${color_subtitle}${list_prefix} successfully synced to: %s${color_normal}\n" "$destination"
+      printf "$color_subtitle$list_prefix successfully synced to: %s$color_normal\n" "$destination"
     else
       # Print config defined sync map
       for src in "${!sync_map[@]}"; do
-        printf "${color_task}${list_prefix} successfully synced: %s${arrow}%s${color_normal}\n" "$src" "${sync_map[$src]}"
+        printf "$color_task$list_prefix successfully synced: %s${arrow}%s$color_normal\n" "$src" "${sync_map[$src]}"
       done
     fi
     echo
@@ -771,11 +771,11 @@ main () {
   fi
 
   # Print launch message
-  printf "${SEP}${color_title}starting $(basename -- ${0})...${color_normal}\n${SEP}"
+  printf "$SEP${color_title}starting $(basename -- $0)...$color_normal\n$SEP"
 
   # Print a message if in dry run
   if [ -n "$dry_run" ]; then
-    printf "${color_active}(running dry run -- no changes will be applied)${color_normal}\n"
+    printf "${color_active}(running dry run -- no changes will be applied)$color_normal\n"
   fi
 
   echo
@@ -793,16 +793,16 @@ main () {
     if [ -z "$jobs_path" ]; then
       if [ -n "$safe_mode" ]; then
         put_err "in --safe mode you need to pass the jobs path variable manually:" 
-        printf "${italic}%s${color_normal}\n" 'jobs_path="/path/to/clone/jobs clone [options] [jobs]"'
+        printf "${italic}%s$color_normal\n" 'jobs_path="/path/to/clone/jobs clone [options] [jobs]"'
         exit 2
       else
         put_err "jobs path not defined"
         printf "try adding to your config file:\n"
-        printf "${italic}%s${color_normal}\n" 'jobs_path="/path/to/clone/jobs"'
+        printf "${italic}%s$color_normal\n" 'jobs_path="/path/to/clone/jobs"'
         exit 2
       fi
     elif [ ! -d "$jobs_path" ]; then
-      put_err "${jobs_path} is not a directory"
+      put_err "$jobs_path is not a directory"
       exit 4
     fi
 
@@ -813,14 +813,14 @@ main () {
     fi
 
     # Store paths to job files into array
-    find "${jobs_path}" -type f -name "*${JOB_FILE_EXT}" -print0 | while IFS= read -r -d '' _job_file; do
+    find "$jobs_path" -type f -name "*$JOB_FILE_EXT" -print0 | while IFS= read -r -d '' _job_file; do
         jobs_array[i]="$_job_file"
         (( i++ ))
     done
 
     # Check if we found anything
     if [[ "${#jobs_array[@]}" -eq "0" ]]; then
-      put_err "${jobs_path}: no job files found\n"
+      put_err "$jobs_path: no job files found\n"
       exit 3
     fi
 
@@ -831,7 +831,7 @@ main () {
 
         # If sync map is empty
         if [ "${#sync_map[@]}" -eq "0" ]; then
-          put_err "${job_file}: sync map not found"
+          put_err "$job_file: sync map not found"
           printf "add a sync map to your job file\n"
           exit 2
         fi
@@ -841,14 +841,14 @@ main () {
       job_name="${_filename%.*}"
 
       # Print job found
-      printf "${color_title}${list_prefix} FOUND job: %s (%s)${color_normal}\n" "$job_name" "$job_file"
+      printf "$color_title$list_prefix FOUND job: %s (%s)$color_normal\n" "$job_name" "$job_file"
 
       if [ -n "$list_jobs" ]; then
         if [ -z "$safe_mode" ]; then
           echo
           # Print sync map
           for src in "${!sync_map[@]}"; do
-            printf "${color_task}${list_prefix} FOUND mapping: %s${arrow}%s${color_normal}\n" "$src" "${sync_map[$src]}"
+            printf "$color_task$list_prefix FOUND mapping: %s${arrow}%s$color_normal\n" "$src" "${sync_map[$src]}"
           done
         fi
         echo
@@ -872,11 +872,11 @@ main () {
       fi
 
       # Source job file
-      job_file="${jobs_path}/${job_name}${JOB_FILE_EXT}"
+      job_file="$jobs_path/$job_name$JOB_FILE_EXT"
       parse_file job "$job_file"
 
       # Print job found
-      printf "${color_title}${list_prefix} FOUND job: %s (%s)${color_normal}\n" "$job_name" "$job_file"
+      printf "$color_title$list_prefix FOUND job: %s (%s)$color_normal\n" "$job_name" "$job_file"
 
       # Run jobs in subshell
       # This way we can configure local options in the job file
@@ -888,6 +888,6 @@ main () {
 # All over
 if main "$@"; then # If exiting with 0
   # Write closing separator to log file
-  echo "$sep" >> "${active_log_file}"
+  echo "$sep" >> "$active_log_file"
   printf "done.\n"
 fi
