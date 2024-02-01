@@ -182,13 +182,12 @@ for your hardware.) Also, storage is expensive.
 
 ## Contribute
 
-This application is still in *alpha*. So if you want to
-contribute, you can just run Clone and submit any bug or unwanted
-behaviour either as an issue or as a PR. All feedback and
-ideas for improvement are more than welcome.
+This program is in early development so just running it and
+reporting on any issue means a lot already. All feedback and
+bases for improvement are more than welcome.
 
 Also you can check the [TODO](#todo) list in case you feel like
-contributing more deeply.
+contributing more thoroughly.
 
 ## TODO
 
@@ -204,13 +203,5 @@ Please feel free to
 [contact me](https://cherrynoize.github.io/#/contacts) about any
 feedback or feature request. Where possible, consider opening a
 public issue. 
-
-## Donations
-
-If you wanted to show your support (or just buy me a pizza)
-[here](https://cherrynoize.github.io/#/contribute) are some options.
-
-This program is in early development so just running it and
-reporting on any issue means a lot already.
 
 ### Thank you for using clone.sh.
